@@ -1,6 +1,5 @@
 <?php
 
-
 include 'db.php';
 
 $message = "";
@@ -21,9 +20,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $mobile_valid = preg_match('/^09\d{9}$/', $mobile);
 
     if (!$all_filled) {
-        $message = "<span class='text-red-600'>All fields are required.</span>";
+        $message = "<div class='alert alert-danger text-center mb-2'>All fields are required.</div>";
     } elseif (!$mobile_valid) {
-        $message = "<span class='text-red-600'>Mobile number must be 11 digits and start with 09 (e.g., 09123456789).</span>";
+        $message = "<div class='alert alert-danger text-center mb-2'>Mobile number must be 11 digits and start with 09 (e.g., 09123456789).</div>";
     } else {
         $fname = $oat->real_escape_string($_POST['fname']);
         $lname = $oat->real_escape_string($_POST['lname']);
@@ -38,7 +37,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Check if username, email, or mobile already exists
         $check = $oat->query("SELECT id FROM users WHERE username='$username' OR email='$email' OR mobile='$mobile'");
         if ($check->num_rows > 0) {
-            $message = "<span class='text-red-600'>Username, email, or mobile number already taken.</span>";
+            $message = "<div class='alert alert-danger text-center mb-2'>Username, email, or mobile number already taken.</div>";
         }
 
         if (empty($message)) {
@@ -51,7 +50,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 header("Location: login.php");
                 exit;
             } else {
-                $message = "<span class='text-red-600'>Error: " . $oat->error . "</span>";
+                $message = "<div class='alert alert-danger text-center mb-2'>Error: " . $oat->error . "</div>";
             }
         }
     }
@@ -64,113 +63,141 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="UTF-8">
     <title>OJT Registration</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
-        .fade-in-up {
-            opacity: 0;
-            transform: translateY(40px);
-            animation: fadeInUp 0.7s cubic-bezier(.4,0,.2,1) forwards;
+        :root {
+            --accent: #3CB3CC;
+            --accent-deep: #2aa0b3;
         }
-        @keyframes fadeInUp {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        body {
+            font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+            background: linear-gradient(135deg, #f7fbfb 0%, #fbfcfd 100%);
+            min-height: 100vh;
+            color: #0f172a;
+        }
+        .register-glass {
+            background: rgba(255,255,255,0.7);
+            border: 1px solid rgba(60,179,204,0.10);
+            box-shadow: 0 12px 36px rgba(15,23,42,0.06);
+            backdrop-filter: blur(8px) saturate(120%);
+            border-radius: 18px;
+            max-width: 480px;
+            margin: 48px auto;
+            padding: 36px 28px 28px 28px;
+        }
+        .register-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--accent-deep);
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .form-label {
+            color: var(--accent-deep);
+            font-weight: 600;
+        }
+        .form-control:focus {
+            border-color: var(--accent-deep);
+            box-shadow: 0 0 0 0.2rem rgba(60,179,204,0.10);
+        }
+        .btn-accent {
+            background: linear-gradient(90deg, var(--accent), var(--accent-deep));
+            color: #fff;
+            font-weight: 700;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 22px;
+            box-shadow: 0 4px 16px rgba(60,179,204,0.10);
+            transition: all .15s;
+        }
+        .btn-accent:hover {
+            background: var(--accent-deep);
+            color: #fff;
+            transform: translateY(-2px) scale(1.03);
+        }
+        .toggle-btn {
+            background: transparent;
+            border: 0;
+            color: var(--accent-deep);
+            font-size: 1.1rem;
+        }
+        .muted-link {
+            color: var(--accent-deep);
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-green-50 to-green-100 min-h-screen flex items-center justify-center">
-    <div class="w-full max-w-md mx-auto p-8 rounded-2xl shadow-2xl border-t-8 border-green-700 fade-in-up
-        bg-white/60 backdrop-blur-md backdrop-saturate-150"
-        style="box-shadow: 0 8px 32px 0 rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.15);">
-        <h2 class="text-3xl font-extrabold text-green-700 mb-2 text-center tracking-tight">OJT Registration</h2>
-        
+<body>
+    <div class="register-glass">
+        <div class="register-title mb-2">OJT Registration</div>
         <?php if ($message): ?>
-            <div class="mb-4 text-center animate-pulse"><?= $message ?></div>
+            <?= $message ?>
         <?php endif; ?>
-        <form class="space-y-5" method="post" action="">
-            <div class="flex gap-3">
-                <div class="w-1/2">
-                    <label for="fname" class="block text-green-700 font-medium mb-1">First Name</label>
-                    <input type="text" name="fname" id="fname" required
-                        class="w-full px-4 py-2 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition bg-green-50" />
+        <form method="post" action="" autocomplete="off">
+            <div class="row mb-3">
+                <div class="col-md-6 mb-2 mb-md-0">
+                    <label for="fname" class="form-label">First Name</label>
+                    <input type="text" name="fname" id="fname" required class="form-control" />
                 </div>
-                <div class="w-1/2">
-                    <label for="lname" class="block text-green-700 font-medium mb-1">Last Name</label>
-                    <input type="text" name="lname" id="lname" required
-                        class="w-full px-4 py-2 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition bg-green-50" />
+                <div class="col-md-6">
+                    <label for="lname" class="form-label">Last Name</label>
+                    <input type="text" name="lname" id="lname" required class="form-control" />
                 </div>
             </div>
-            <div class="flex gap-3">
-                <div class="w-1/2">
-                    <label for="age" class="block text-green-700 font-medium mb-1">Age</label>
-                    <input type="number" name="age" id="age" min="16" max="99" required
-                        class="w-full px-4 py-2 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition bg-green-50" />
+            <div class="row mb-3">
+                <div class="col-md-6 mb-2 mb-md-0">
+                    <label for="age" class="form-label">Age</label>
+                    <input type="number" name="age" id="age" min="16" max="99" required class="form-control" />
                 </div>
-                <div class="w-1/2">
-                    <label for="mobile" class="block text-green-700 font-medium mb-1">Mobile No.</label>
-                    <input type="text" name="mobile" id="mobile" pattern="^09\d{9}$" maxlength="11" minlength="11" required
-                        class="w-full px-4 py-2 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition bg-green-50"
-                        placeholder="09123456789" />
+                <div class="col-md-6">
+                    <label for="mobile" class="form-label">Mobile No.</label>
+                    <input type="text" name="mobile" id="mobile" pattern="^09\d{9}$" maxlength="11" minlength="11" required class="form-control" placeholder="09123456789" />
                 </div>
             </div>
-            <div>
-                <label for="username" class="block text-green-700 font-medium mb-1">Username</label>
-                <input type="text" name="username" id="username" required
-                    class="w-full px-4 py-2 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition bg-green-50" />
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" name="username" id="username" required class="form-control" />
             </div>
-            <div>
-                <label for="email" class="block text-green-700 font-medium mb-1">Email</label>
-                <input type="email" name="email" id="email" required
-                    class="w-full px-4 py-2 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition bg-green-50" />
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" name="email" id="email" required class="form-control" />
             </div>
-            <div>
-                <label for="password" class="block text-green-700 font-medium mb-1">Password</label>
-                <div class="relative">
-                    <input type="password" name="password" id="password" required
-                        class="w-full px-4 py-2 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition pr-10 bg-green-50" />
-                    <button type="button" id="togglePassword" tabindex="-1"
-                        class="absolute inset-y-0 right-0 px-3 flex items-center text-green-600 focus:outline-none">
-                        <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
-                            viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <div class="input-group">
+                    <input type="password" name="password" id="password" required class="form-control" />
+                    <button type="button" id="togglePassword" class="btn toggle-btn" tabindex="-1" aria-label="Toggle password">
+                        <span id="eyeIcon" class="bi bi-eye"></span>
                     </button>
                 </div>
             </div>
-            <div>
-                <label for="required_hours" class="block text-green-700 font-medium mb-1">Required OJT Hours</label>
-                <input type="number" name="required_hours" id="required_hours" min="1" step="0.01" required
-                    class="w-full px-4 py-2 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition bg-green-50" />
+            <div class="mb-4">
+                <label for="required_hours" class="form-label">Required OJT Hours</label>
+                <input type="number" name="required_hours" id="required_hours" min="1" step="0.01" required class="form-control" />
             </div>
-            <button type="submit"
-                class="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-2 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105">
-                Register
-            </button>
+            <button type="submit" class="btn-accent w-100 mb-2">Register</button>
         </form>
-        <p class="mt-6 text-center text-sm text-green-700">Already have an account? <a href="login.php" class="underline font-medium hover:text-green-900 transition">Login</a></p>
+        <div class="text-center mt-3">
+            <span class="text-muted">Already have an account?</span>
+            <a href="login.php" class="muted-link ms-1">Login</a>
+        </div>
     </div>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Toggle password visibility
         const togglePassword = document.getElementById('togglePassword');
         const password = document.getElementById('password');
         const eyeIcon = document.getElementById('eyeIcon');
-        let show = false;
         togglePassword.addEventListener('click', function () {
-            show = !show;
-            password.type = show ? 'text' : 'password';
-            eyeIcon.innerHTML = show
-                ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.293-3.95m1.414-1.414A9.956 9.956 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.956 9.956 0 01-4.043 5.197M15 12a3 3 0 11-6 0 3 3 0 016 0z" />`
-                : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`;
-        });
-
-        // Animate form on load
-        window.addEventListener('DOMContentLoaded', () => {
-            document.querySelector('.fade-in-up').style.opacity = 1;
+            if (password.type === 'password') {
+                password.type = 'text';
+                eyeIcon.className = 'bi bi-eye-slash';
+            } else {
+                password.type = 'password';
+                eyeIcon.className = 'bi bi-eye';
+            }
         });
     </script>
 </body>

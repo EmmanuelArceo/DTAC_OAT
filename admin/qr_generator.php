@@ -1,6 +1,5 @@
 <?php
 
-
 include '../db.php';
 
 // Handle AJAX request
@@ -13,7 +12,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1' && isset($_GET['type'])) {
 
 include 'nav.php';
 
-// Generate a new code every 30 seconds (global QR, not per user)
+// Generate a new code every 2 seconds (global QR, not per user)
 function generate_qr_data($type) {
     $now = time();
     $interval = 2;
@@ -47,32 +46,56 @@ $time_out_data = generate_qr_data('time_out');
     <meta charset="UTF-8">
     <title>Admin QR Generator</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #e0f2f1 0%, #f1f8e9 100%); }
+        .qr-section {
+            transition: box-shadow 0.2s;
+        }
+        .qr-section.active {
+            box-shadow: 0 4px 24px 0 rgba(34,197,94,0.15);
+            border: 2px solid #43a047;
+        }
+        .qr-img {
+            width: 200px;
+            height: 200px;
+            object-fit: contain;
+            background: #fff;
+            border-radius: 1rem;
+            border: 2px solid #e0e0e0;
+        }
+        .toggle-btn {
+            min-width: 180px;
+        }
+    </style>
 </head>
-<body class="bg-green-50 min-h-screen">
-    <div class="max-w-4xl mx-auto mt-10 p-6 bg-white rounded-xl shadow-lg">
-        <h1 class="text-2xl font-bold text-green-700 mb-6 text-center">OJT QR Generators</h1>
-        <div class="mb-4 text-center">
-            <button id="toggle-qr-btn" class="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-lg shadow transition">
-                Show Time Out QR
-            </button>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <!-- Time In QR -->
-            <div id="time-in-section" class="flex flex-col items-center bg-green-100 rounded-lg p-4 shadow">
-                <h2 class="text-lg font-semibold text-green-700 mb-2">Time In QR Code</h2>
-                <img id="qr-img-time_in" src="<?= $time_in_data['qr_img'] ?>" alt="Time In QR Code" class="mb-2 rounded shadow border border-green-200" />
-                <div id="qr-expiry-time-in" class="text-xs text-gray-500">Expires in: <span id="qr-expiry-seconds-time_in"></span>s</div>
+<body>
+    <div class="container" style="max-width: 700px; margin-top: 40px;">
+        <div class="card shadow-lg p-4 mb-4">
+            <h1 class="text-center fw-bold text-success mb-4">OJT QR Generators</h1>
+            <div class="text-center mb-4">
+                <button id="toggle-qr-btn" class="btn btn-success toggle-btn">Show Time Out QR</button>
             </div>
-            <!-- Time Out QR -->
-            <div id="time-out-section" class="hidden flex flex-col items-center bg-blue-100 rounded-lg p-4 shadow">
-                <h2 class="text-lg font-semibold text-blue-700 mb-2">Time Out QR Code</h2>
-                <img id="qr-img-time_out" src="<?= $time_out_data['qr_img'] ?>" alt="Time Out QR Code" class="mb-2 rounded shadow border border-blue-200" />
-                <div id="qr-expiry-time-out" class="text-xs text-gray-500">Expires in: <span id="qr-expiry-seconds-time_out"></span>s</div>
+            <div class="d-flex justify-content-center">
+                <!-- Time In QR -->
+                <div id="time-in-section" class="qr-section active d-flex flex-column align-items-center bg-light rounded-4 p-4" style="min-width:320px;max-width:100%;">
+                    <h2 class="fs-5 fw-semibold text-success mb-2">Time In QR Code</h2>
+                    <img id="qr-img-time_in" src="<?= $time_in_data['qr_img'] ?>" alt="Time In QR Code" class="qr-img mb-2" />
+                    <div id="qr-expiry-time-in" class="small text-secondary">Expires in: <span id="qr-expiry-seconds-time_in"></span>s</div>
+                </div>
+                <!-- Time Out QR -->
+                <div id="time-out-section" class="qr-section d-none d-flex flex-column align-items-center bg-light rounded-4 p-4" style="min-width:320px;max-width:100%;">
+                    <h2 class="fs-5 fw-semibold text-primary mb-2">Time Out QR Code</h2>
+                    <img id="qr-img-time_out" src="<?= $time_out_data['qr_img'] ?>" alt="Time Out QR Code" class="qr-img mb-2" />
+                    <div id="qr-expiry-time-out" class="small text-secondary">Expires in: <span id="qr-expiry-seconds-time_out"></span>s</div>
+                </div>
             </div>
+            <p class="mt-4 text-center text-muted small">QR codes refresh every 2 seconds and are valid only for today.</p>
         </div>
-        <p class="mt-8 text-center text-sm text-gray-400">QR codes refresh every 3 seconds and are valid only for today.</p>
     </div>
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         let lastExpiryTimeIn = '<?= $time_in_data['expiry'] ?>';
@@ -132,12 +155,16 @@ $time_out_data = generate_qr_data('time_out');
 
             showingTimeOut = !showingTimeOut;
             if (showingTimeOut) {
-                timeInSection.classList.add('hidden');
-                timeOutSection.classList.remove('hidden');
+                timeInSection.classList.add('d-none');
+                timeInSection.classList.remove('active');
+                timeOutSection.classList.remove('d-none');
+                timeOutSection.classList.add('active');
                 toggleBtn.textContent = 'Show Time In QR';
             } else {
-                timeOutSection.classList.add('hidden');
-                timeInSection.classList.remove('hidden');
+                timeOutSection.classList.add('d-none');
+                timeOutSection.classList.remove('active');
+                timeInSection.classList.remove('d-none');
+                timeInSection.classList.add('active');
                 toggleBtn.textContent = 'Show Time Out QR';
             }
         });

@@ -1,5 +1,6 @@
 <?php
 
+
 session_start();
 include 'db.php';
 
@@ -20,47 +21,142 @@ $dtr_query = $oat->query("SELECT date, time_in, time_out FROM ojt_records WHERE 
     <meta charset="UTF-8">
     <title>My DTR Report</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Include html5-qrcode library -->
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- html5-qrcode library -->
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root {
+            --accent: #3CB3CC;
+            --accent-deep: #2aa0b3;
+            --muted: #6b7280;
+        }
+        body {
+            font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+            background: linear-gradient(135deg, #f7fbfb 0%, #fbfcfd 100%);
+            color: #0f172a;
+            min-height: 100vh;
+        }
+        .dtr-glass {
+            background: rgba(255,255,255,0.66);
+            border: 1px solid rgba(60,179,204,0.10);
+            box-shadow: 0 12px 36px rgba(15,23,42,0.06);
+            backdrop-filter: blur(8px) saturate(120%);
+            border-radius: 16px;
+            max-width: 900px;
+            margin: 48px auto;
+            padding: 32px 24px;
+        }
+        .dtr-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--accent-deep);
+            margin-bottom: 8px;
+        }
+        .dtr-subtitle {
+            color: var(--muted);
+            font-size: 1rem;
+            margin-bottom: 24px;
+        }
+        .dtr-actions {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            justify-content: center;
+        }
+        .dtr-actions justify-content-center flex-row {
+            gap: 10px;
+        }
+        .btn-accent {
+            background: linear-gradient(90deg, var(--accent), var(--accent-deep));
+            color: #fff;
+            font-weight: 700;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 22px;
+            box-shadow: 0 4px 16px rgba(60,179,204,0.10);
+            transition: all .15s;
+        }
+        .btn-accent:hover {
+            background: var(--accent-deep);
+            color: #fff;
+            transform: translateY(-2px) scale(1.03);
+        }
+        #qr-reader {
+            margin: 0 auto;
+            display: none;
+            max-width: 340px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 12px rgba(60,179,204,0.08);
+        }
+        #qr-result {
+            text-align: center;
+            margin-top: 18px;
+            font-weight: 600;
+            color: var(--muted);
+            min-height: 28px;
+        }
+        .table thead th {
+            background: linear-gradient(90deg, var(--accent-deep), var(--accent));
+            color: #fff;
+            border: none;
+            font-weight: 700;
+            font-size: 1rem;
+        }
+        .table tbody tr:hover {
+            background: rgba(60,179,204,0.04);
+        }
+        .table td, .table th {
+            vertical-align: middle;
+        }
+        @media (max-width: 900px) {
+            .dtr-glass { padding: 18px 6px; }
+            .dtr-title { font-size: 1.3rem; }
+            .dtr-actions { flex-direction: column; gap: 10px; }
+        }
+    </style>
 </head>
-<body class="bg-green-50 min-h-screen">
+<body>
     <?php include 'nav.php'; ?>
-    <div class="max-w-3xl mx-auto mt-10 p-6 bg-white rounded-xl shadow-lg">
-        <h1 class="text-2xl font-bold text-green-700 mb-6">My DTR Report</h1>
-        <div class="mb-6 text-center flex justify-center space-x-4">
-            <button id="scan-time-in-btn" class="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-lg shadow transition">
-                Scan Time In QR
+    <div class="dtr-glass">
+        <div class="text-center mb-4">
+            <div class="dtr-title">My DTR Report</div>
+            <div class="dtr-subtitle">Your recent attendance records</div>
+        </div>
+        <div class="dtr-actions justify-content-center flex-row">
+            <button id="scan-time-in-btn" class="btn-accent me-2">
+                <i class="bi bi-qr-code-scan me-2"></i>Scan Time In QR
             </button>
-            <button id="scan-time-out-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow transition">
-                Scan Time Out QR
+            <button id="scan-time-out-btn" class="btn-accent">
+                <i class="bi bi-qr-code-scan me-2"></i>Scan Time Out QR
             </button>
         </div>
-        <div id="qr-reader" style="width: 300px; margin: 0 auto; display: none;"></div>
-        <div id="qr-result" class="text-center mt-4 font-semibold"></div>
-        <div class="overflow-x-auto mt-8">
-            <table class="min-w-full bg-white rounded-lg shadow">
+        <div id="scan-label" class="text-center fw-semibold mb-2" style="color:var(--accent-deep);"></div>
+        <div id="qr-reader"></div>
+        <div id="qr-result"></div>
+        <div class="table-responsive mt-4">
+            <table class="table align-middle rounded-3 overflow-hidden shadow-sm">
                 <thead>
                     <tr>
-                        <th class="py-2 px-4 bg-green-700 text-white">Date</th>
-                        <th class="py-2 px-4 bg-green-700 text-white">Time In</th>
-                        <th class="py-2 px-4 bg-green-700 text-white">Time Out</th>
-                        <th class="py-2 px-4 bg-green-700 text-white">Late</th>
-                        <th class="py-2 px-4 bg-green-700 text-white">Total Hours</th>
+                        <th>Date</th>
+                        <th class="text-center">Time In</th>
+                        <th class="text-center">Time Out</th>
+                        <th class="text-center">Late</th>
+                        <th class="text-center">Total Hours</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if ($dtr_query->num_rows > 0): ?>
                         <?php while ($row = $dtr_query->fetch_assoc()): ?>
-                            <tr class="border-b hover:bg-green-50 transition">
-                                <td class="py-2 px-4 text-center"><?= htmlspecialchars($row['date']) ?></td>
-                                <td class="py-2 px-4 text-center">
-                                    <?= $row['time_in'] ? date("g:i A", strtotime($row['time_in'])) : '' ?>
-                                </td>
-                                <td class="py-2 px-4 text-center">
+                            <tr>
+                                <td class="text-center"><?= htmlspecialchars($row['date']) ?></td>
+                                <td class="text-center"><?= $row['time_in'] ? date("g:i A", strtotime($row['time_in'])) : '' ?></td>
+                                <td class="text-center">
                                     <?= ($row['time_out'] && $row['time_out'] !== '00:00:00') ? date("g:i A", strtotime($row['time_out'])) : '' ?>
                                 </td>
-                                <td class="py-2 px-4 text-center">
+                                <td class="text-center">
                                     <?php
                                     $late = 'No';
                                     if ($row['time_in'] && date('H:i:s', strtotime($row['time_in'])) > '08:00:00') {
@@ -69,24 +165,27 @@ $dtr_query = $oat->query("SELECT date, time_in, time_out FROM ojt_records WHERE 
                                     echo $late;
                                     ?>
                                 </td>
-                                <td class="py-2 px-4 text-center">
+                                <td class="text-center">
                                     <?php
                                     if ($row['time_in'] && $row['time_out'] && $row['time_out'] !== '00:00:00') {
                                         $time_in = strtotime($row['time_in']);
                                         $time_out = strtotime($row['time_out']);
-                                        $hours = floor(($time_out - $time_in) / 3600);
+                                        $hours = ($time_out - $time_in) / 3600;
 
-                                        // Deduct 1 hour only if time_in <= 12:00:00 and time_out >= 13:00:00
+                                        // Deduct 1 hour ONLY if the interval overlaps with 12:00:00 to 13:00:00
                                         $lunch_start = strtotime(date('Y-m-d', $time_in) . ' 12:00:00');
                                         $lunch_end = strtotime(date('Y-m-d', $time_in) . ' 13:00:00');
-                                        if ($time_in <= $lunch_start && $time_out >= $lunch_end) {
+                                        $overlaps_lunch = ($time_in < $lunch_end) && ($time_out > $lunch_start);
+                                        if ($overlaps_lunch) {
                                             $hours -= 1;
                                         }
 
-                                        if ($late === 'Yes') {
-                                            $hours -= 1; // Deduct for late
+                                        // Deduct 1 hour ONLY if late (time_in after 8:00 AM)
+                                        if (date('H:i:s', $time_in) > '08:00:00') {
+                                            $hours -= 1;
                                         }
-                                        echo max(0, $hours);
+
+                                        echo max(0, round($hours)) . ' h';
                                     } else {
                                         echo '';
                                     }
@@ -96,7 +195,7 @@ $dtr_query = $oat->query("SELECT date, time_in, time_out FROM ojt_records WHERE 
                         <?php endwhile; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="5" class="py-4 text-center text-gray-500">No DTR records found.</td>
+                            <td colspan="5" class="py-4 text-center text-muted">No DTR records found.</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
@@ -108,59 +207,72 @@ $dtr_query = $oat->query("SELECT date, time_in, time_out FROM ojt_records WHERE 
         const scanTimeOutBtn = document.getElementById('scan-time-out-btn');
         const qrReader = document.getElementById('qr-reader');
         const qrResult = document.getElementById('qr-result');
+        const scanLabel = document.getElementById('scan-label');
         let html5QrCode;
         let currentAction = ''; // 'time_in' or 'time_out'
 
         function startScan(action) {
             currentAction = action;
             qrReader.style.display = 'block';
-            scanTimeInBtn.style.display = 'none';
-            scanTimeOutBtn.style.display = 'none';
+            scanTimeInBtn.disabled = true;
+            scanTimeOutBtn.disabled = true;
+            scanLabel.textContent = action === 'time_in' ? 'Scanning for Time In...' : 'Scanning for Time Out...';
+            if (html5QrCode) {
+                html5QrCode.stop().catch(()=>{});
+                html5QrCode = null;
+            }
             html5QrCode = new Html5Qrcode("qr-reader");
             html5QrCode.start(
                 { facingMode: "environment" },
-                {
-                    fps: 10,
-                    qrbox: 250
-                },
+                { fps: 10, qrbox: 250 },
                 qrCodeMessage => {
-                    html5QrCode.stop();
+                    html5QrCode.stop().catch(()=>{});
                     qrReader.style.display = 'none';
-                    scanTimeInBtn.style.display = 'inline-block';
-                    scanTimeOutBtn.style.display = 'inline-block';
+                    scanTimeInBtn.disabled = false;
+                    scanTimeOutBtn.disabled = false;
+                    scanLabel.textContent = ''; // clear label
                     qrResult.innerHTML = "Processing QR...";
 
-                    // Parse QR URL and send to appropriate endpoint
-                    const url = new URL(qrCodeMessage);
-                    const params = new URLSearchParams(url.search);
-                    const code = params.get('code');
-                    const sessionId = params.get('session_id');
-                    const date = params.get('date');
+                    try {
+                        const url = new URL(qrCodeMessage);
+                        const params = new URLSearchParams(url.search);
+                        const code = params.get('code');
+                        const sessionId = params.get('session_id');
+                        const date = params.get('date');
 
-                    if (!code || !sessionId || !date) {
-                        qrResult.innerHTML = "Invalid QR code format.";
-                        return;
+                        if (!code || !sessionId || !date) {
+                            qrResult.innerHTML = "Invalid QR code format.";
+                            return;
+                        }
+
+                        const endpoint = currentAction === 'time_out' ? 'time_out.php' : 'time_in.php';
+                        fetch(`${endpoint}?code=${encodeURIComponent(code)}&session_id=${encodeURIComponent(sessionId)}&date=${encodeURIComponent(date)}`)
+                            .then(response => response.text())
+                            .then(data => {
+                                qrResult.innerHTML = data;
+                                setTimeout(() => location.reload(), 2000);
+                            })
+                            .catch(() => {
+                                qrResult.innerHTML = "Failed to process QR.";
+                            });
+                    } catch (e) {
+                        qrResult.innerHTML = "Invalid QR code content.";
                     }
-
-                    const endpoint = currentAction === 'time_out' ? 'time_out.php' : 'time_in.php';
-                    fetch(`${endpoint}?code=${encodeURIComponent(code)}&session_id=${encodeURIComponent(sessionId)}&date=${encodeURIComponent(date)}`)
-                        .then(response => response.text())
-                        .then(data => {
-                            qrResult.innerHTML = data;
-                            setTimeout(() => location.reload(), 2000);
-                        })
-                        .catch(() => {
-                            qrResult.innerHTML = "Failed to process QR.";
-                        });
                 },
                 errorMessage => {
                     // Optionally show scan errors
                 }
-            );
+            ).catch(() => {
+                qrResult.innerHTML = "Unable to start camera.";
+                scanTimeInBtn.disabled = false;
+                scanTimeOutBtn.disabled = false;
+                scanLabel.textContent = '';
+            });
         }
 
         scanTimeInBtn.addEventListener('click', () => startScan('time_in'));
         scanTimeOutBtn.addEventListener('click', () => startScan('time_out'));
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -16,7 +16,7 @@ function send_reset_email($to_email, $reset_link) {
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
         $mail->Port       = 465;
 
-        $mail->setFrom('petbuddy.co.ph@gmail.com', 'PetBuddy');
+        $mail->setFrom('petbuddy.co.ph@gmail.com', 'DLSU-D TESDA');
         $mail->addAddress($to_email); // <-- This line is required!
 
         $mail->isHTML(true);

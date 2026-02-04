@@ -19,16 +19,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['role'] = $user['role'];
             $_SESSION['full_name'] = $user['full_name'];
             if ($user['role'] === 'super_admin') {
-                header("Location: admin\admin.php");
+                header("Location: admin/admin.php");
             } else {
                 header("Location: dashboard.php");
             }
             exit;
         } else {
-            $message = "<span class='text-red-600'>Invalid username or password.</span>";
+            $message = "<div class='alert alert-danger mb-3'>Invalid username or password.</div>";
         }
     } else {
-        $message = "<span class='text-red-600'>Invalid username or password.</span>";
+        $message = "<div class='alert alert-danger mb-3'>Invalid username or password.</div>";
     }
 }
 ?>
@@ -39,60 +39,99 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="UTF-8">
     <title>OJT Login</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --accent: #3CB3CC; --accent-deep: #2aa0b3; }
+        body{
+            font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+            background: linear-gradient(135deg,#f6fbfb 0%, #eef9fa 50%, #f9fcfd 100%);
+            min-height:100vh; display:flex; align-items:center; justify-content:center;
+            color:#0f172a;
+        }
+        .card-glass{
+            width:100%; max-width:420px;
+            background: rgba(255,255,255,0.65);
+            border: 1px solid rgba(60,179,204,0.10);
+            backdrop-filter: blur(8px) saturate(120%);
+            box-shadow: 0 12px 40px rgba(15,23,42,0.06);
+            border-radius:14px; padding:28px;
+        }
+        .brand {
+            display:flex; align-items:center; gap:10px; margin-bottom:8px;
+        }
+        .brand .logo {
+            width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-deep));
+            box-shadow:0 8px 20px rgba(15,23,42,0.06);
+        }
+        .brand h2{ margin:0; font-size:1.25rem; font-weight:800; color:var(--accent-deep); }
+        .form-label { color: #0f172a; font-weight:600; }
+        .form-control:focus { box-shadow: 0 0 0 0.2rem rgba(60,179,204,0.12); border-color: var(--accent-deep); }
+        .btn-accent {
+            background: linear-gradient(90deg,var(--accent) 0%, var(--accent-deep) 100%);
+            border: none; color: #fff; font-weight:700; padding:10px 14px; border-radius:10px;
+        }
+        .toggle-btn {
+            background: transparent; border:0; color:var(--accent-deep); font-size:1.05rem;
+        }
+        .muted-link { color: var(--accent-deep); }
+    </style>
 </head>
-<body class="bg-green-50 min-h-screen flex items-center justify-center">
-    <div class="w-full max-w-md mx-auto p-6 bg-white rounded-xl shadow-lg border-t-8 border-green-700">
-        <h2 class="text-2xl font-bold text-green-700 mb-6 text-center">OJT Login</h2>
+<body>
+    <div class="card-glass">
+        <div class="brand">
+            <div class="logo" aria-hidden="true"></div>
+            <h2>OJT Tracker</h2>
+        </div>
+
+        <p class="mb-3" style="font-weight:700;color:#0f172a">Sign in to your account</p>
+
         <?php if ($message): ?>
-            <div class="mb-4 text-center"><?= $message ?></div>
+            <?= $message ?>
         <?php endif; ?>
-        <form class="space-y-5" method="post" action="">
-            <div>
-                <label for="username" class="block text-green-700 font-medium mb-1">Username</label>
-                <input type="text" name="username" id="username" required
-                    class="w-full px-4 py-2 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition" />
+
+        <form method="post" action="">
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input id="username" name="username" type="text" class="form-control" required autofocus />
             </div>
-            <div>
-                <label for="password" class="block text-green-700 font-medium mb-1">Password</label>
-                <div class="relative">
-                    <input type="password" name="password" id="password" required
-                        class="w-full px-4 py-2 border border-green-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition pr-10" />
-                    <button type="button" id="togglePassword" tabindex="-1"
-                        class="absolute inset-y-0 right-0 px-3 flex items-center text-green-600 focus:outline-none">
-                        <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
-                            viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
+
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <div class="input-group">
+                    <input id="password" name="password" type="password" class="form-control" required />
+                    <button type="button" id="togglePassword" class="btn toggle-btn" aria-label="Toggle password">
+                        <i id="eyeIcon" class="bi bi-eye"></i>
                     </button>
                 </div>
             </div>
-            <button type="submit"
-                class="w-full bg-green-700 hover:bg-green-800 text-white font-semibold py-2 rounded-lg shadow transition">
-                Login
-            </button>
+
+            <div class="d-grid mb-3">
+                <button type="submit" class="btn btn-accent">Login</button>
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <small><a href="register.php" class="muted-link">Register</a></small>
+                <small><a href="forgot_password.php" class="muted-link">Forgot Password?</a></small>
+            </div>
         </form>
-        <p class="mt-6 text-center text-sm text-green-700">Don't have an account? <a href="register.php" class="underline font-medium">Register</a></p>
-        <p class="mt-2 text-center text-sm text-green-700">
-            <a href="forgot_password.php" class="underline font-medium hover:text-green-900 transition">Forgot Password?</a>
-        </p>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Toggle password visibility
         const togglePassword = document.getElementById('togglePassword');
         const password = document.getElementById('password');
         const eyeIcon = document.getElementById('eyeIcon');
-        let show = false;
-        togglePassword.addEventListener('click', function () {
-            show = !show;
-            password.type = show ? 'text' : 'password';
-            eyeIcon.innerHTML = show
-                ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.956 9.956 0 012.293-3.95m1.414-1.414A9.956 9.956 0 0112 5c4.478 0 8.268 2.943 9.542 7a9.956 9.956 0 01-4.043 5.197M15 12a3 3 0 11-6 0 3 3 0 016 0z" />`
-                : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`;
+        togglePassword.addEventListener('click', () => {
+            if (password.type === 'password') {
+                password.type = 'text';
+                eyeIcon.className = 'bi bi-eye-slash';
+            } else {
+                password.type = 'password';
+                eyeIcon.className = 'bi bi-eye';
+            }
         });
     </script>
 </body>
