@@ -2,12 +2,21 @@
 
 
 include '../db.php';
+
+// Handle AJAX request
+if (isset($_GET['ajax']) && $_GET['ajax'] == '1' && isset($_GET['type'])) {
+    header('Content-Type: application/json');
+    $type = $_GET['type'] === 'time_out' ? 'time_out' : 'time_in';
+    echo json_encode(generate_qr_data($type));
+    exit;
+}
+
 include 'nav.php';
 
 // Generate a new code every 30 seconds (global QR, not per user)
 function generate_qr_data($type) {
     $now = time();
-    $interval = 30;
+    $interval = 3;
     $code_time = floor($now / $interval) * $interval;
     $salt = $type === 'time_out' ? 'your_time_out_secret_salt' : 'your_global_secret_salt';
     $unique_code = hash('sha256', $code_time . $salt . $type);
@@ -27,14 +36,6 @@ function generate_qr_data($type) {
         'qr_img' => $qr_img,
         'expiry' => $expiry
     ];
-}
-
-// Handle AJAX request
-if (isset($_GET['ajax']) && $_GET['ajax'] == '1' && isset($_GET['type'])) {
-    header('Content-Type: application/json');
-    $type = $_GET['type'] === 'time_out' ? 'time_out' : 'time_in';
-    echo json_encode(generate_qr_data($type));
-    exit;
 }
 
 $time_in_data = generate_qr_data('time_in');
@@ -60,19 +61,20 @@ $time_out_data = generate_qr_data('time_out');
             <!-- Time In QR -->
             <div id="time-in-section" class="flex flex-col items-center bg-green-100 rounded-lg p-4 shadow">
                 <h2 class="text-lg font-semibold text-green-700 mb-2">Time In QR Code</h2>
-                <img id="qr-img-time-in" src="<?= $time_in_data['qr_img'] ?>" alt="Time In QR Code" class="mb-2 rounded shadow border border-green-200" />
-                <div id="qr-expiry-time-in" class="text-xs text-gray-500">Expires at: <?= htmlspecialchars($time_in_data['expiry']) ?></div>
+                <img id="qr-img-time_in" src="<?= $time_in_data['qr_img'] ?>" alt="Time In QR Code" class="mb-2 rounded shadow border border-green-200" />
+                <div id="qr-expiry-time-in" class="text-xs text-gray-500">Expires in: <span id="qr-expiry-seconds-time_in"></span>s</div>
             </div>
             <!-- Time Out QR -->
             <div id="time-out-section" class="hidden flex flex-col items-center bg-blue-100 rounded-lg p-4 shadow">
                 <h2 class="text-lg font-semibold text-blue-700 mb-2">Time Out QR Code</h2>
-                <img id="qr-img-time-out" src="<?= $time_out_data['qr_img'] ?>" alt="Time Out QR Code" class="mb-2 rounded shadow border border-blue-200" />
-                <div id="qr-expiry-time-out" class="text-xs text-gray-500">Expires at: <?= htmlspecialchars($time_out_data['expiry']) ?></div>
+                <img id="qr-img-time_out" src="<?= $time_out_data['qr_img'] ?>" alt="Time Out QR Code" class="mb-2 rounded shadow border border-blue-200" />
+                <div id="qr-expiry-time-out" class="text-xs text-gray-500">Expires in: <span id="qr-expiry-seconds-time_out"></span>s</div>
             </div>
         </div>
-        <p class="mt-8 text-center text-sm text-gray-400">QR codes refresh every 30 seconds and are valid only for today.</p>
+        <p class="mt-8 text-center text-sm text-gray-400">QR codes refresh every 3 seconds and are valid only for today.</p>
     </div>
     <script>
+    document.addEventListener('DOMContentLoaded', function() {
         let lastExpiryTimeIn = '<?= $time_in_data['expiry'] ?>';
         let lastExpiryTimeOut = '<?= $time_out_data['expiry'] ?>';
         let showingTimeOut = false;
@@ -80,6 +82,49 @@ $time_out_data = generate_qr_data('time_out');
         const toggleBtn = document.getElementById('toggle-qr-btn');
         const timeInSection = document.getElementById('time-in-section');
         const timeOutSection = document.getElementById('time-out-section');
+
+        function parseExpiry(expiryStr) {
+            return new Date(expiryStr.replace(' ', 'T'));
+        }
+
+        function updateCountdown(type, expiryStr) {
+            const expiryDate = parseExpiry(expiryStr);
+            const now = new Date();
+            let diff = Math.floor((expiryDate - now) / 1000);
+            if (diff < 0) diff = 0;
+            const expirySecondsElem = document.getElementById(`qr-expiry-seconds-${type}`);
+            if (expirySecondsElem) {
+                expirySecondsElem.textContent = diff;
+            }
+            return diff;
+        }
+
+        function refreshQR(type) {
+            fetch(`qr_generator.php?ajax=1&type=${type}`)
+                .then(response => response.json())
+                .then(data => {
+                    const imgElem = document.getElementById(`qr-img-${type}`);
+                    if (imgElem) {
+                        imgElem.src = data.qr_img;
+                    }
+                    if (type === 'time_in') {
+                        lastExpiryTimeIn = data.expiry;
+                    } else {
+                        lastExpiryTimeOut = data.expiry;
+                    }
+                    // Immediately update countdown after refresh
+                    updateCountdown(type, data.expiry);
+                });
+        }
+
+        // Unified countdown and refresh loop for both QR codes
+        setInterval(() => {
+            let diffIn = updateCountdown('time_in', lastExpiryTimeIn);
+            let diffOut = updateCountdown('time_out', lastExpiryTimeOut);
+
+            if (diffIn === 0) refreshQR('time_in');
+            if (diffOut === 0) refreshQR('time_out');
+        }, 1000);
 
         toggleBtn.addEventListener('click', () => {
             const confirmChange = confirm('Confirm change QR?');
@@ -97,21 +142,10 @@ $time_out_data = generate_qr_data('time_out');
             }
         });
 
-        function refreshQR(type) {
-            fetch(`qr_generator.php?ajax=1&type=${type}`)
-                .then(response => response.json())
-                .then(data => {
-                    const lastExpiry = type === 'time_in' ? lastExpiryTimeIn : lastExpiryTimeOut;
-                    if (data.expiry !== lastExpiry) {
-                        document.getElementById(`qr-img-${type}`).src = data.qr_img;
-                        document.getElementById(`qr-expiry-${type}`).textContent = "Expires at: " + data.expiry;
-                        if (type === 'time_in') lastExpiryTimeIn = data.expiry;
-                        else lastExpiryTimeOut = data.expiry;
-                    }
-                });
-        }
-        setInterval(() => refreshQR('time_in'), 30000);
-        setInterval(() => refreshQR('time_out'), 30000);
+        // Initial countdown display
+        updateCountdown('time_in', lastExpiryTimeIn);
+        updateCountdown('time_out', lastExpiryTimeOut);
+    });
     </script>
 </body>
 </html>
