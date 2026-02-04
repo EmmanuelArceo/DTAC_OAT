@@ -16,7 +16,7 @@ include 'nav.php';
 // Generate a new code every 30 seconds (global QR, not per user)
 function generate_qr_data($type) {
     $now = time();
-    $interval = 3;
+    $interval = 2;
     $code_time = floor($now / $interval) * $interval;
     $salt = $type === 'time_out' ? 'your_time_out_secret_salt' : 'your_global_secret_salt';
     $unique_code = hash('sha256', $code_time . $salt . $type);

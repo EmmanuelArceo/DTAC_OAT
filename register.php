@@ -85,7 +85,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         bg-white/60 backdrop-blur-md backdrop-saturate-150"
         style="box-shadow: 0 8px 32px 0 rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.15);">
         <h2 class="text-3xl font-extrabold text-green-700 mb-2 text-center tracking-tight">OJT Registration</h2>
-        <p class="text-green-500 text-center mb-6 text-sm font-medium">Minimalist, Secure, and Fast</p>
+        
         <?php if ($message): ?>
             <div class="mb-4 text-center animate-pulse"><?= $message ?></div>
         <?php endif; ?>

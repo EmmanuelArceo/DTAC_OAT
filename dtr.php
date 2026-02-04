@@ -74,7 +74,15 @@ $dtr_query = $oat->query("SELECT date, time_in, time_out FROM ojt_records WHERE 
                                     if ($row['time_in'] && $row['time_out'] && $row['time_out'] !== '00:00:00') {
                                         $time_in = strtotime($row['time_in']);
                                         $time_out = strtotime($row['time_out']);
-                                        $hours = floor(($time_out - $time_in) / 3600 - 1); // Deduct lunch
+                                        $hours = floor(($time_out - $time_in) / 3600);
+
+                                        // Deduct 1 hour only if time_in <= 12:00:00 and time_out >= 13:00:00
+                                        $lunch_start = strtotime(date('Y-m-d', $time_in) . ' 12:00:00');
+                                        $lunch_end = strtotime(date('Y-m-d', $time_in) . ' 13:00:00');
+                                        if ($time_in <= $lunch_start && $time_out >= $lunch_end) {
+                                            $hours -= 1;
+                                        }
+
                                         if ($late === 'Yes') {
                                             $hours -= 1; // Deduct for late
                                         }

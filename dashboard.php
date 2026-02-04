@@ -1,6 +1,8 @@
 <?php
 
-session_start();
+  if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
 include 'db.php';
 
 // Redirect to login if not signed in
@@ -33,11 +35,15 @@ while ($row = $records->fetch_assoc()) {
     $time_out = strtotime($row['time_out']);
     $base_hours = ($time_out - $time_in) / 3600; // Base hours
 
-    // Deduct 1 hour for lunch
-    $adjusted_hours = $base_hours - 1;
+    // Deduct 1 hour for lunch only if time_in <= 12:00:00 and time_out >= 13:00:00
+    $lunch_start = strtotime(date('Y-m-d', $time_in) . ' 12:00:00');
+    $lunch_end = strtotime(date('Y-m-d', $time_in) . ' 13:00:00');
+    $adjusted_hours = $base_hours;
+    if ($time_in <= $lunch_start && $time_out >= $lunch_end) {
+        $adjusted_hours -= 1;
+    }
 
     // Deduct 1 hour if late (time_in after 8:00 AM)
-    $standard_time_in = strtotime('08:00:00');
     if (date('H:i:s', $time_in) > '08:00:00') {
         $adjusted_hours -= 1;
     }
