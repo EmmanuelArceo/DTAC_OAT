@@ -166,27 +166,43 @@ $dtr_query = $oat->query("SELECT date, time_in, time_out, remarks, time_in_polic
                                     if ($row['time_in'] && $row['time_out'] && $row['time_out'] !== '00:00:00') {
                                         $time_in = strtotime($row['time_in']);
                                         $time_out = strtotime($row['time_out']);
-                                        $hours = ($time_out - $time_in) / 3600;
-
-                                        // Deduct 1 hour ONLY if the interval overlaps with 12:00:00 to 13:00:00
-                                        $lunch_start = strtotime(date('Y-m-d', $time_in) . ' 12:00:00');
-                                        $lunch_end = strtotime(date('Y-m-d', $time_in) . ' 13:00:00');
-                                        $overlaps_lunch = ($time_in < $lunch_end) && ($time_out > $lunch_start);
-                                        if ($overlaps_lunch) {
-                                            $hours -= 1;
-                                        }
-
-                                        // Use the policy in effect for this record
                                         $policy_time_in = $row['time_in_policy'] ?? $default_time_in;
                                         $policy_time_out = $row['time_out_policy'] ?? $default_time_out;
 
-                                        if ($row['time_in'] && $policy_time_in && date('H:i:s', strtotime($row['time_in'])) > $policy_time_in) {
-                                            $hours -= 1;
+                                        $regular_end = strtotime($policy_time_out);
+                                        $policy_in_time = strtotime(date('Y-m-d', $time_in) . ' ' . $policy_time_in);
+
+                                        // If late, start counting from next full hour
+                                        if ($time_in > $policy_in_time) {
+                                            // Late: start from next full hour
+                                            $count_start = strtotime(date('Y-m-d H:00:00', $time_in) . ' +1 hour');
+                                        } else {
+                                            // On time or early
+                                            $count_start = $time_in;
                                         }
 
-                                        // (Optional) You can use $policy_time_out for future logic, e.g., OT calculation
+                                        // Regular hours: up to official time out
+                                        $reg_hours = min($time_out, $regular_end) - $count_start;
+                                        $reg_hours = $reg_hours / 3600;
 
-                                        echo max(0, round($hours)) . ' h';
+                                        // Deduct 1 hour for lunch if overlaps
+                                        $lunch_start = strtotime(date('Y-m-d', $count_start) . ' 12:00:00');
+                                        $lunch_end = strtotime(date('Y-m-d', $count_start) . ' 13:00:00');
+                                        if ($count_start < $lunch_end && min($time_out, $regular_end) > $lunch_start) {
+                                            $reg_hours -= 1;
+                                        }
+
+                                        // OT hours: after official time out, only if approved
+                                        $ot_hours = 0;
+                                        if ($time_out > $regular_end) {
+                                            $ot_report = $oat->query("SELECT ot_hours FROM ot_reports WHERE student_id = $user_id AND ot_date = '{$row['date']}' AND approved = 1")->fetch_assoc();
+                                            if ($ot_report) {
+                                                $ot_hours = (float)$ot_report['ot_hours'];
+                                            }
+                                        }
+
+                                        $total_hours = max(0, round($reg_hours + $ot_hours, 2));
+                                        echo $total_hours . ' h';
                                     } else {
                                         echo '';
                                     }

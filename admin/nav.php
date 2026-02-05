@@ -99,7 +99,7 @@
         <a href="qr_generator.php" class="nav-link">Time In/Out QR</a>
         <a href="manageojt.php" class="nav-link">Manage OJT</a>
         <a href="activeojt.php" class="nav-link">Active OJT</a>
-        <a href="reports.php" class="nav-link">Reports</a>
+        <a href="otreports.php" class="nav-link">OT Reports</a>
         <a href="sitesettings.php" class="nav-link">Site Settings</a>
     <div class="sidebar-footer">
         <a href="../logout.php" class="btn btn-logout">Logout</a>

@@ -13,10 +13,18 @@ if (!isset($_SESSION['user_id'])) {
 
 // Fetch user info
 $user_id = $_SESSION['user_id'];
-$user_info = $oat->query("SELECT fname, lname, position FROM users WHERE id = $user_id")->fetch_assoc();
-$full_name = ($user_info['fname'] ?? '') . ' ' . ($user_info['lname'] ?? '');
+$user_info = $oat->query("SELECT fname, lname, mname, position, profile_img FROM users WHERE id = $user_id")->fetch_assoc();
+$full_name = ($user_info['fname'] ?? '') . ' ' .
+    (isset($user_info['mname']) && $user_info['mname'] ? strtoupper(substr($user_info['mname'],0,1)) . '. ' : '') .
+    ($user_info['lname'] ?? '');
 $position = $user_info['position'] ?? '';
 $role = $_SESSION['role'] ?? 'ojt';
+
+// Fix profile image path
+$img = 'uploads/noimg.png';
+if (!empty($user_info['profile_img']) && file_exists($user_info['profile_img'])) {
+    $img = $user_info['profile_img'];
+}
 
 // Fetch required hours
 $req = $oat->query("SELECT required_hours FROM ojt_requirements WHERE user_id = $user_id")->fetch_assoc();
@@ -25,6 +33,9 @@ $required_hours = (float)($req['required_hours'] ?? 0);
 // Fetch default time in from site_settings
 $settings = $oat->query("SELECT default_time_in FROM site_settings LIMIT 1")->fetch_assoc();
 $default_time_in = $settings['default_time_in'] ?? '08:00:00';
+
+// Fetch default time out from site_settings
+$default_time_out = $settings['default_time_out'] ?? '17:00:00';
 
 // Fetch completed hours (only for valid time_out records) with policy adjustments
 $total_completed = 0;
@@ -37,28 +48,8 @@ $records = $oat->query("
     AND time_out > time_in
 ");
 while ($row = $records->fetch_assoc()) {
-    $time_in = strtotime($row['time_in']);
-    $time_out = strtotime($row['time_out']);
-    $base_hours = ($time_out - $time_in) / 3600; // Base hours
-
-    // Deduct 1 hour for lunch only if time_in <= 12:00:00 and time_out >= 13:00:00
-    $lunch_start = strtotime(date('Y-m-d', $time_in) . ' 12:00:00');
-    $lunch_end = strtotime(date('Y-m-d', $time_in) . ' 13:00:00');
-    $adjusted_hours = $base_hours;
-    if ($time_in <= $lunch_start && $time_out >= $lunch_end) {
-        $adjusted_hours -= 1;
-    }
-
-    // Deduct 1 hour if late (time_in after default_time_in)
-    if (date('H:i:s', $time_in) > $default_time_in) {
-        $adjusted_hours -= 1;
-    }
-
-    // Round to whole hours
-    $adjusted_hours = round($adjusted_hours);
-
-    // Ensure non-negative
-    $total_completed += max(0, $adjusted_hours);
+    $adjusted_hours = calculate_session_hours($row['time_in'], $row['time_out'], $default_time_in, $default_time_out, $user_id, $oat);
+    $total_completed += $adjusted_hours;
 }
 $completed_hours = $total_completed;
 $remaining_hours = max(0, $required_hours - $completed_hours);
@@ -82,6 +73,7 @@ $recent = $oat->query("
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
     <style>
         :root{
             --accent: #3CB3CC;
@@ -108,7 +100,7 @@ $recent = $oat->query("
             background: var(--glass-bg);
             border: 1px solid var(--glass-border);
             box-shadow: 0 8px 30px rgba(15,23,42,0.06);
-            backdrop-filter: blur(8px) saturate(120%);
+            backdrop-filter: blur(10px);
             border-radius:14px;
         }
         .header{
@@ -138,10 +130,12 @@ $recent = $oat->query("
             padding:18px;
             border-radius:12px;
             background:linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.45));
-            transition:transform .18s ease, box-shadow .18s ease;
+            transition:box-shadow .18s ease; /* Removed transform for smoother scrolling */
             border:1px solid rgba(15,23,42,0.03);
         }
-        .stat:hover{ transform:translateY(-6px); box-shadow:0 12px 30px rgba(15,23,42,0.08); }
+        .stat:hover{ 
+            box-shadow:0 12px 30px rgba(15,23,42,0.08); /* Kept shadow, removed translateY */
+        }
         .stat .label{ font-size:12px; color:var(--muted); font-weight:600; }
         .stat .value{ font-size:28px; font-weight:800; color:var(--accent-deep); margin-top:6px;}
         .progress-wrap{
@@ -162,6 +156,7 @@ $recent = $oat->query("
             gap:12px;
             padding:18px;
             align-items:center;
+            justify-content: center;
         }
         .btn-accent{
             background:transparent;
@@ -171,6 +166,7 @@ $recent = $oat->query("
             border-radius:10px;
             font-weight:700;
             transition:all .15s ease;
+            text-decoration: none;
         }
         .btn-accent:hover{
             background:var(--accent);
@@ -195,35 +191,52 @@ $recent = $oat->query("
             .header{ flex-direction:column; align-items:flex-start; gap:8px; padding:16px;}
             .actions{ padding:14px; width:100%; }
         }
+        .profile-float {
+            position: absolute;
+            left: 50%;
+            top:8%;
+            transform: translate(-50%, -40%); /* 50% overlap */
+            z-index: 10;
+            width: 150px;
+            height: 150px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .glass-frosted {
+            background: rgba(255,255,255,0.55);
+            border: 1px solid rgba(60,179,204,0.18);
+            box-shadow: 0 16px 40px rgba(15,23,42,0.10);
+            /* Removed backdrop-filter to eliminate frosted glass effect */
+            border-radius: 18px;
+            position: relative;
+        }
+        @media (max-width: 600px) {
+            .profile-float { width: 90px; height: 90px; }
+        }
     </style>
 </head>
 <body>
    
-    <main class="wrap">
-        <div class="glass">
-            <div class="header">
-                <div class="d-flex align-items-center gap-3">
-                    <?php
-                        // Fetch profile image for dashboard
-                        $img = 'uploads/noimg.png';
-                        $user_img = $oat->query("SELECT profile_img FROM users WHERE id = $user_id")->fetch_assoc();
-                        if (!empty($user_img['profile_img']) && file_exists('' . $user_img['profile_img'])) {
-                            $img = '' . $user_img['profile_img'];
-                        }
-                    ?>
-                    <img src="<?= htmlspecialchars($img) ?>" alt="Profile" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--accent);" />
-                    <div class="d-flex flex-column align-items-start">
-                        <div class="title"><?= htmlspecialchars($full_name ?: 'OJT') ?></div>
-                        <div class="subtitle"><?= htmlspecialchars($position ?: $role) ?></div>
-                    </div>
-                </div>
-                <div class="actions">
-                    <button class="btn-accent" onclick="location.href='dtr.php'">View DTR</button>
-                    <button class="btn-accent" onclick="location.href='records.php'">OT Report</button>
-                </div>
+    <main class="wrap" style="position:relative;">
+        <!-- Floating Profile Image, centered and overlapping glass box -->
+        <div class="profile-float">
+            <img src="<?= htmlspecialchars($img) ?>" alt="Profile"
+                style="width:160px;height:160px;border-radius:50%;object-fit:cover;border:5px solid #3CB3CC;box-shadow:0 8px 32px rgba(60,179,204,0.18);background:rgba(255,255,255,0.7);" />
+        </div>
+        <div class="glass glass-frosted" style="margin-top:60px; padding-top:80px;">
+            <div class="header justify-content-center" style="flex-direction:column; align-items:center; text-align:center;">
+                <div class="title" style="font-size:2rem;"><?= htmlspecialchars($full_name ?: 'OJT') ?></div>
+                <?php if ($position): ?>
+                    <div class="subtitle" style="font-weight:600; font-size:1.1rem; margin-top:6px;"><?= htmlspecialchars($position) ?></div>
+                <?php endif; ?>
+              
             </div>
-
-            <div class="stats">
+            <div class="actions" data-aos="fade-up" data-aos-delay="100">
+                            <a href="dtr.php" class="btn-accent">View DTR</a>
+                            <a href="ot_report.php" class="btn-accent">OT Report</a>
+                        </div>
+            <div class="stats" data-aos="fade-up" data-aos-delay="200">
                 <div class="stat">
                     <div class="label">Required Hours</div>
                     <div class="value"><?= number_format($required_hours,0) ?></div>
@@ -258,7 +271,9 @@ $recent = $oat->query("
                 </div>
             </div>
 
-            <div class="recent">
+            
+
+            <div class="recent" >
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
                     <div style="font-weight:700;color:var(--accent-deep)">Recent Sessions</div>
                     <div style="color:var(--muted);font-size:13px"><?= $recent ? $recent->num_rows : 0 ?> latest</div>
@@ -277,7 +292,15 @@ $recent = $oat->query("
                         <?php while($r = $recent->fetch_assoc()): ?>
                             <tr>
                                 <td><?= htmlspecialchars($r['date']) ?></td>
-                                <td><?= $r['time_in'] ? date('g:i A', strtotime($r['time_in'])) : '<span style="color:var(--muted)">--</span>' ?></td>
+                                <td>
+                                    <?php
+                                        if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
+                                            echo date('g:i A', strtotime($r['time_in']));
+                                        } else {
+                                            echo '<span style="color:var(--muted)">--</span>';
+                                        }
+                                    ?>
+                                </td>
                                 <td>
                                     <?php
                                         if ($r['time_out'] && $r['time_out'] !== '00:00:00') {
@@ -292,22 +315,36 @@ $recent = $oat->query("
                                         if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
                                             $time_in = strtotime($r['time_in']);
                                             $time_out = strtotime($r['time_out']);
-                                            $hours = ($time_out - $time_in) / 3600;
+                                            $policy_in_time = strtotime(date('Y-m-d', $time_in) . ' ' . $default_time_in);
+                                            $regular_end = strtotime(date('Y-m-d', $time_in) . ' ' . $default_time_out);
 
-                                            // Deduct 1 hour ONLY if the interval overlaps with 12:00:00 to 13:00:00
-                                            $lunch_start = strtotime(date('Y-m-d', $time_in) . ' 12:00:00');
-                                            $lunch_end = strtotime(date('Y-m-d', $time_in) . ' 13:00:00');
-                                            $overlaps_lunch = ($time_in < $lunch_end) && ($time_out > $lunch_start);
-                                            if ($overlaps_lunch) {
-                                                $hours -= 1;
+                                            // Late logic: if time_in > default_time_in, start from next full hour
+                                            if ($time_in > $policy_in_time) {
+                                                $count_start = strtotime(date('Y-m-d H:00:00', $time_in) . ' +1 hour');
+                                            } else {
+                                                $count_start = max($time_in, $policy_in_time);
+                                            }
+                                            $reg_count_end = min($time_out, $regular_end);
+                                            $regular_hours = ($reg_count_end - $count_start) / 3600;
+
+                                            // Deduct 1 hour for lunch if overlaps regular hours
+                                            $lunch_start = strtotime(date('Y-m-d', $count_start) . ' 12:00:00');
+                                            $lunch_end = strtotime(date('Y-m-d', $count_start) . ' 13:00:00');
+                                            if ($count_start < $lunch_end && $reg_count_end > $lunch_start) {
+                                                $regular_hours -= 1;
                                             }
 
-                                            // Deduct 1 hour ONLY if late (time_in after default_time_in)
-                                            if (date('H:i:s', $time_in) > $default_time_in) {
-                                                $hours -= 1;
+                                            // OT hours: after default time out, only if approved
+                                            $ot_hours = 0;
+                                            if ($time_out > $regular_end) {
+                                                $ot_date = date('Y-m-d', $time_in);
+                                                $ot_report = $oat->query("SELECT ot_hours FROM ot_reports WHERE student_id = $user_id AND ot_date = '$ot_date' AND approved = 1")->fetch_assoc();
+                                                if ($ot_report) {
+                                                    $ot_hours = (float)$ot_report['ot_hours'];
+                                                }
                                             }
 
-                                            echo max(0, round($hours)) . ' h';
+                                            echo max(0, round($regular_hours + $ot_hours)) . ' h';
                                         } else {
                                             echo '<span style="color:var(--muted)">--</span>';
                                         }
@@ -326,5 +363,46 @@ $recent = $oat->query("
 
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <script>
+        AOS.init();
+    </script>
 </body>
 </html>
+
+<?php
+function calculate_session_hours($time_in_str, $time_out_str, $default_time_in, $default_time_out, $user_id, $oat) {
+    $time_in = strtotime($time_in_str);
+    $time_out = strtotime($time_out_str);
+    $policy_in_time = strtotime(date('Y-m-d', $time_in) . ' ' . $default_time_in);
+    $regular_end = strtotime(date('Y-m-d', $time_in) . ' ' . $default_time_out);
+
+    // Late logic: if time_in > default_time_in, start from next full hour
+    if ($time_in > $policy_in_time) {
+        $count_start = strtotime(date('Y-m-d H:00:00', $time_in) . ' +1 hour');
+    } else {
+        $count_start = max($time_in, $policy_in_time);
+    }
+    $reg_count_end = min($time_out, $regular_end);
+    $regular_hours = ($reg_count_end - $count_start) / 3600;
+
+    // Deduct 1 hour for lunch if overlaps regular hours
+    $lunch_start = strtotime(date('Y-m-d', $count_start) . ' 12:00:00');
+    $lunch_end = strtotime(date('Y-m-d', $count_start) . ' 13:00:00');
+    if ($count_start < $lunch_end && $reg_count_end > $lunch_start) {
+        $regular_hours -= 1;
+    }
+
+    // OT hours: after default time out, only if approved
+    $ot_hours = 0;
+    if ($time_out > $regular_end) {
+        $ot_date = date('Y-m-d', $time_in);
+        $ot_report = $oat->query("SELECT ot_hours FROM ot_reports WHERE student_id = $user_id AND ot_date = '$ot_date' AND approved = 1")->fetch_assoc();
+        if ($ot_report) {
+            $ot_hours = (float)$ot_report['ot_hours'];
+        }
+    }
+
+    return max(0, round($regular_hours + $ot_hours));
+}
+?>

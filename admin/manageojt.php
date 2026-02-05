@@ -8,7 +8,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin')
 }
 
 // Fetch all OJT users (assuming role 'ojt')
-$ojts = $oat->query("SELECT id, username, fname, lname, email, bio, profile_img FROM users WHERE role = 'ojt' ORDER BY lname, fname");
+$ojts = $oat->query("SELECT id, username, fname, lname, email, bio, profile_img, position FROM users WHERE role = 'ojt' ORDER BY lname, fname");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -18,6 +18,8 @@ $ojts = $oat->query("SELECT id, username, fname, lname, email, bio, profile_img 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="aos.php" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         /* Modal animation */
         .modal-animate {
@@ -57,6 +59,8 @@ $ojts = $oat->query("SELECT id, username, fname, lname, email, bio, profile_img 
                         <th class="py-2 px-4 border-b">Name</th>
                         <th class="py-2 px-4 border-b">Username</th>
                         <th class="py-2 px-4 border-b">Email</th>
+                        <th class="py-2 px-4 border-b">Bio</th>
+                        <th class="py-2 px-4 border-b">Position</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -65,7 +69,15 @@ $ojts = $oat->query("SELECT id, username, fname, lname, email, bio, profile_img 
                             <td class="py-2 px-4 border-b text-center">
                                 <button 
                                     class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
-                                    onclick="openManageModal(<?= $ojt['id'] ?>, '<?= htmlspecialchars(addslashes($ojt['fname'])) ?>', '<?= htmlspecialchars(addslashes($ojt['lname'])) ?>', '<?= htmlspecialchars(addslashes($ojt['username'])) ?>', '<?= htmlspecialchars(addslashes($ojt['email'])) ?>', '<?= htmlspecialchars(addslashes($ojt['bio'])) ?>')"
+                                    onclick="openManageModal(
+                                        <?= $ojt['id'] ?>, 
+                                        '<?= htmlspecialchars(addslashes($ojt['fname'])) ?>', 
+                                        '<?= htmlspecialchars(addslashes($ojt['lname'])) ?>', 
+                                        '<?= htmlspecialchars(addslashes($ojt['username'])) ?>', 
+                                        '<?= htmlspecialchars(addslashes($ojt['email'])) ?>', 
+                                        '<?= htmlspecialchars(addslashes($ojt['bio'])) ?>', 
+                                        '<?= htmlspecialchars(addslashes($ojt['position'] ?? '')) ?>'
+                                    )"
                                 >
                                     Manage
                                 </button>
@@ -83,6 +95,8 @@ $ojts = $oat->query("SELECT id, username, fname, lname, email, bio, profile_img 
                             <td class="py-2 px-4 border-b"><?= htmlspecialchars($ojt['fname'] . ' ' . $ojt['lname']) ?></td>
                             <td class="py-2 px-4 border-b"><?= htmlspecialchars($ojt['username']) ?></td>
                             <td class="py-2 px-4 border-b"><?= htmlspecialchars($ojt['email']) ?></td>
+                            <td class="py-2 px-4 border-b"><?= htmlspecialchars($ojt['bio']) ?></td>
+                            <td class="py-2 px-4 border-b"><?= htmlspecialchars($ojt['position'] ?? '') ?></td>
                         </tr>
                     <?php endwhile; ?>
                 </tbody>
@@ -90,62 +104,69 @@ $ojts = $oat->query("SELECT id, username, fname, lname, email, bio, profile_img 
         </div>
     </div>
 
-    <!-- Modal for managing OJT profile -->
-    <div id="manageModal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
-        <div id="modalCard" class="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative modal-animate">
-            <button onclick="closeManageModal()" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-xl">&times;</button>
-            <h2 class="text-xl font-bold mb-4 text-green-700">Update OJT Profile</h2>
-            <form id="manageForm" method="post" enctype="multipart/form-data">
-                <input type="hidden" name="ojt_id" id="ojt_id">
+    <!-- Bootstrap Modal for managing OJT profile -->
+    <div class="modal fade" id="manageModal" tabindex="-1" aria-labelledby="manageModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <form id="manageForm" method="post" enctype="multipart/form-data">
+            <div class="modal-header bg-success text-white">
+              <h5 class="modal-title" id="manageModalLabel">Update OJT Profile</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <input type="hidden" name="ojt_id" id="ojt_id">
+            <div class="modal-body">
                 <div class="mb-3">
-                    <label class="block font-semibold mb-1">First Name</label>
-                    <input type="text" name="fname" id="modal_fname" class="w-full border rounded px-3 py-2" required>
-                </div>
-                <div class="mb-3">
-                    <label class="block font-semibold mb-1">Last Name</label>
-                    <input type="text" name="lname" id="modal_lname" class="w-full border rounded px-3 py-2" required>
-                </div>
-                <div class="mb-3">
-                    <label class="block font-semibold mb-1">Username</label>
-                    <input type="text" name="username" id="modal_username" class="w-full border rounded px-3 py-2" required>
+                    <label class="form-label fw-semibold">First Name</label>
+                    <input type="text" name="fname" id="modal_fname" class="form-control" required>
                 </div>
                 <div class="mb-3">
-                    <label class="block font-semibold mb-1">Email</label>
-                    <input type="email" name="email" id="modal_email" class="w-full border rounded px-3 py-2" required>
+                    <label class="form-label fw-semibold">Last Name</label>
+                    <input type="text" name="lname" id="modal_lname" class="form-control" required>
                 </div>
                 <div class="mb-3">
-                    <label class="block font-semibold mb-1">Bio</label>
-                    <textarea name="bio" id="modal_bio" class="w-full border rounded px-3 py-2"></textarea>
+                    <label class="form-label fw-semibold">Username</label>
+                    <input type="text" name="username" id="modal_username" class="form-control" required>
                 </div>
                 <div class="mb-3">
-                    <label class="block font-semibold mb-1">Profile Image</label>
-                    <input type="file" name="profile_img" class="w-full border rounded px-3 py-2">
+                    <label class="form-label fw-semibold">Email</label>
+                    <input type="email" name="email" id="modal_email" class="form-control" required>
                 </div>
-                <div class="flex justify-end gap-2">
-                    <button type="button" onclick="closeManageModal()" class="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300">Cancel</button>
-                    <button type="submit" name="update_ojt" class="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700">Update</button>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Bio</label>
+                    <textarea name="bio" id="modal_bio" class="form-control"></textarea>
                 </div>
-            </form>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Position</label>
+                    <input type="text" name="position" id="modal_position" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Profile Image</label>
+                    <input type="file" name="profile_img" class="form-control">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" name="update_ojt" class="btn btn-success">Update</button>
+            </div>
+          </form>
         </div>
+      </div>
     </div>
 
     <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
     <script>
     AOS.init();
 
-    function openManageModal(id, fname, lname, username, email, bio) {
-        const modal = document.getElementById('manageModal');
-        const card = document.getElementById('modalCard');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        setTimeout(() => card.classList.add('show'), 10);
-
+    function openManageModal(id, fname, lname, username, email, bio, position) {
         document.getElementById('ojt_id').value = id;
         document.getElementById('modal_fname').value = fname;
         document.getElementById('modal_lname').value = lname;
         document.getElementById('modal_username').value = username;
         document.getElementById('modal_email').value = email;
         document.getElementById('modal_bio').value = bio;
+        document.getElementById('modal_position').value = position;
+        var modal = new bootstrap.Modal(document.getElementById('manageModal'));
+        modal.show();
     }
     function closeManageModal() {
         const modal = document.getElementById('manageModal');
@@ -174,6 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_ojt'])) {
     $username = $oat->real_escape_string($_POST['username']);
     $email = $oat->real_escape_string($_POST['email']);
     $bio = $oat->real_escape_string($_POST['bio']);
+    $position = $oat->real_escape_string($_POST['position']);
     $img_path = null;
 
     if (isset($_FILES['profile_img']) && $_FILES['profile_img']['error'] === UPLOAD_ERR_OK) {
@@ -186,7 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_ojt'])) {
         $oat->query("UPDATE users SET profile_img = '$img_path' WHERE id = $ojt_id");
     }
 
-    $oat->query("UPDATE users SET fname='$fname', lname='$lname', username='$username', email='$email', bio='$bio' WHERE id = $ojt_id");
+    $oat->query("UPDATE users SET fname='$fname', lname='$lname', username='$username', email='$email', bio='$bio', position='$position' WHERE id = $ojt_id");
     echo "<script>location.href='manageojt.php';</script>";
     exit;
 }
