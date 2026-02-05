@@ -13,7 +13,7 @@ $today = date('Y-m-d');
 
 // Fetch all OJTs who have time_in for today
 $ojts = $oat->query("
-    SELECT u.id, u.username, u.fname, u.lname, u.email, u.profile_img, r.time_in, r.time_out
+    SELECT u.id, u.username, u.fname, u.lname, u.profile_img, r.time_in, r.time_out, r.remarks
     FROM users u
     JOIN ojt_records r ON u.id = r.user_id
     WHERE u.role = 'ojt' AND r.date = '$today' AND r.time_in IS NOT NULL AND r.time_in != ''
@@ -220,12 +220,11 @@ $ojts = $oat->query("
                                     ?>
                                 </span>
                             </div>
+                         
                             <div class="ojt-info-row flex-column align-items-start" style="gap:0;">
-                                <span class="ojt-info-label mb-1"><i class="bi bi-envelope"></i> Email:</span>
+                                <span class="ojt-info-label mb-1"><i class="bi bi-chat-left-text"></i> Remarks:</span>
                                 <span class="ojt-info-value">
-                                    <a href="mailto:<?= htmlspecialchars($ojt['email']) ?>">
-                                        <?= htmlspecialchars($ojt['email']) ?>
-                                    </a>
+                                    <?= htmlspecialchars($ojt['remarks'] ?? '--') ?>
                                 </span>
                             </div>
                         </div>

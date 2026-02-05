@@ -13,12 +13,18 @@ if (!isset($_SESSION['user_id'])) {
 
 // Fetch user info
 $user_id = $_SESSION['user_id'];
-$full_name = $_SESSION['full_name'] ?? '';
+$user_info = $oat->query("SELECT fname, lname, position FROM users WHERE id = $user_id")->fetch_assoc();
+$full_name = ($user_info['fname'] ?? '') . ' ' . ($user_info['lname'] ?? '');
+$position = $user_info['position'] ?? '';
 $role = $_SESSION['role'] ?? 'ojt';
 
 // Fetch required hours
 $req = $oat->query("SELECT required_hours FROM ojt_requirements WHERE user_id = $user_id")->fetch_assoc();
 $required_hours = (float)($req['required_hours'] ?? 0);
+
+// Fetch default time in from site_settings
+$settings = $oat->query("SELECT default_time_in FROM site_settings LIMIT 1")->fetch_assoc();
+$default_time_in = $settings['default_time_in'] ?? '08:00:00';
 
 // Fetch completed hours (only for valid time_out records) with policy adjustments
 $total_completed = 0;
@@ -43,12 +49,12 @@ while ($row = $records->fetch_assoc()) {
         $adjusted_hours -= 1;
     }
 
-    // Deduct 1 hour if late (time_in after 8:00 AM)
-    if (date('H:i:s', $time_in) > '08:00:00') {
+    // Deduct 1 hour if late (time_in after default_time_in)
+    if (date('H:i:s', $time_in) > $default_time_in) {
         $adjusted_hours -= 1;
     }
 
-    // Floor to whole hours (ignore minutes)
+    // Round to whole hours
     $adjusted_hours = round($adjusted_hours);
 
     // Ensure non-negative
@@ -208,12 +214,12 @@ $recent = $oat->query("
                     <img src="<?= htmlspecialchars($img) ?>" alt="Profile" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--accent);" />
                     <div class="d-flex flex-column align-items-start">
                         <div class="title"><?= htmlspecialchars($full_name ?: 'OJT') ?></div>
-                        <div class="subtitle"><?= htmlspecialchars($role) ?></div>
+                        <div class="subtitle"><?= htmlspecialchars($position ?: $role) ?></div>
                     </div>
                 </div>
                 <div class="actions">
                     <button class="btn-accent" onclick="location.href='dtr.php'">View DTR</button>
-                    <button class="btn-accent" onclick="location.href='records.php'">All Records</button>
+                    <button class="btn-accent" onclick="location.href='records.php'">OT Report</button>
                 </div>
             </div>
 
@@ -296,8 +302,8 @@ $recent = $oat->query("
                                                 $hours -= 1;
                                             }
 
-                                            // Deduct 1 hour ONLY if late (time_in after 8:00 AM)
-                                            if (date('H:i:s', $time_in) > '08:00:00') {
+                                            // Deduct 1 hour ONLY if late (time_in after default_time_in)
+                                            if (date('H:i:s', $time_in) > $default_time_in) {
                                                 $hours -= 1;
                                             }
 

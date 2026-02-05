@@ -1,11 +1,15 @@
 <?php
 include '../db.php';
-session_start();
+include 'nav.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin') {
     header("Location: ../login.php");
     exit;
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,6 +31,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin')
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
             /* removed heavy backdrop-filter for cleaner white look */
             border-radius: 1.5rem;
+        
         }
         .dashboard-header {
             font-size: 2.7rem;
@@ -116,7 +121,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin')
     </style>
 </head>
 <body>
-    <?php include 'nav.php'; ?>
+  
     <div class="container main-content py-5" style="max-width: 1200px;">
         <!-- Header -->
         <div class="glass p-4 mb-4">
@@ -231,7 +236,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin')
                                 <th scope="col">Username</th>
                                 <th scope="col">Time In</th>
                                 <th scope="col">Time Out</th>
-                                <th scope="col">Email</th>
+                                <th scope="col">DTR Report</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -261,7 +266,11 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin')
                                     <td class="text-muted">@<?= htmlspecialchars($ojt['username']) ?></td>
                                     <td style="color:#14532d;font-weight:600;"><?= $time_in ?></td>
                                     <td style="color:#14532d;font-weight:600;"><?= $time_out ?></td>
-                                    <td><a href="mailto:<?= htmlspecialchars($ojt['email']) ?>" class="text-success"><?= htmlspecialchars($ojt['email']) ?></a></td>
+                                    <td>
+                                        <a href="dtrview.php?user_id=<?= urlencode($ojt['id']) ?>" class="btn btn-sm btn-outline-success">
+                                            View DTR
+                                        </a>
+                                    </td>
                                 </tr>
                             <?php endwhile; ?>
                         </tbody>

@@ -6,7 +6,7 @@ $message = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Check if all fields are filled
-    $required_fields = ['fname', 'lname', 'age', 'mobile', 'username', 'email', 'password', 'required_hours'];
+    $required_fields = ['fname', 'mname', 'lname', 'age', 'mobile', 'username', 'email', 'password', 'required_hours', 'school_org'];
     $all_filled = true;
     foreach ($required_fields as $field) {
         if (empty(trim($_POST[$field] ?? ''))) {
@@ -25,13 +25,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $message = "<div class='alert alert-danger text-center mb-2'>Mobile number must be 11 digits and start with 09 (e.g., 09123456789).</div>";
     } else {
         $fname = $oat->real_escape_string($_POST['fname']);
+        $mname = $oat->real_escape_string($_POST['mname']);
         $lname = $oat->real_escape_string($_POST['lname']);
+        $full_name = trim($fname . ' ' . $mname . '. ' . $lname);
         $age = intval($_POST['age']);
         $mobile = $oat->real_escape_string($mobile);
         $username = $oat->real_escape_string($_POST['username']);
         $email = $oat->real_escape_string($_POST['email']);
         $password = $_POST['password'];
         $required_hours = floatval($_POST['required_hours']);
+        $school_org = $oat->real_escape_string($_POST['school_org']);
         $role = 'ojt';
 
         // Check if username, email, or mobile already exists
@@ -42,7 +45,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         if (empty($message)) {
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $sql = "INSERT INTO users (username, email, password, role, fname, lname, age, mobile) VALUES ('$username', '$email', '$hashed_password', '$role', '$fname', '$lname', $age, '$mobile')";
+            $sql = "INSERT INTO users (username, email, password, role, fname, mname, lname, age, mobile, school_org) VALUES ('$username', '$email', '$hashed_password', '$role', '$fname', '$mname', '$lname', $age, '$mobile', '$school_org')";
             if ($oat->query($sql)) {
                 $user_id = $oat->insert_id;
                 $sql2 = "INSERT INTO ojt_requirements (user_id, required_hours) VALUES ($user_id, $required_hours)";
@@ -136,11 +139,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <?php endif; ?>
         <form method="post" action="" autocomplete="off">
             <div class="row mb-3">
-                <div class="col-md-6 mb-2 mb-md-0">
+                <div class="col-md-4 mb-2 mb-md-0">
                     <label for="fname" class="form-label">First Name</label>
                     <input type="text" name="fname" id="fname" required class="form-control" />
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4 mb-2 mb-md-0">
+                    <label for="mname" class="form-label">Middle Name</label>
+                    <input type="text" name="mname" id="mname" required class="form-control" placeholder="" />
+                </div>
+                <div class="col-md-4">
                     <label for="lname" class="form-label">Last Name</label>
                     <input type="text" name="lname" id="lname" required class="form-control" />
                 </div>
@@ -154,6 +161,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <label for="mobile" class="form-label">Mobile No.</label>
                     <input type="text" name="mobile" id="mobile" pattern="^09\d{9}$" maxlength="11" minlength="11" required class="form-control" placeholder="09123456789" />
                 </div>
+            </div>
+            <div class="mb-3">
+                <label for="school_org" class="form-label">School/Organization</label>
+                <input type="text" name="school_org" id="school_org" required class="form-control" placeholder="Your School or Organization" />
             </div>
             <div class="mb-3">
                 <label for="username" class="form-label">Username</label>

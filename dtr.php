@@ -11,8 +11,13 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// Fetch DTR records for this OJT
-$dtr_query = $oat->query("SELECT date, time_in, time_out FROM ojt_records WHERE user_id = $user_id ORDER BY date DESC");
+// Fetch default time in/out from site_settings
+$settings = $oat->query("SELECT default_time_in, default_time_out FROM site_settings LIMIT 1")->fetch_assoc();
+$default_time_in = $settings['default_time_in'] ?? '08:00:00';
+$default_time_out = $settings['default_time_out'] ?? '17:00:00';
+
+// Fetch DTR records for this OJT (include remarks, time_in_policy, time_out_policy)
+$dtr_query = $oat->query("SELECT date, time_in, time_out, remarks, time_in_policy, time_out_policy FROM ojt_records WHERE user_id = $user_id ORDER BY date DESC");
 ?>
 
 <!DOCTYPE html>
@@ -143,8 +148,8 @@ $dtr_query = $oat->query("SELECT date, time_in, time_out FROM ojt_records WHERE 
                         <th>Date</th>
                         <th class="text-center">Time In</th>
                         <th class="text-center">Time Out</th>
-                        <th class="text-center">Late</th>
                         <th class="text-center">Total Hours</th>
+                        <th class="text-center">Remarks</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -155,15 +160,6 @@ $dtr_query = $oat->query("SELECT date, time_in, time_out FROM ojt_records WHERE 
                                 <td class="text-center"><?= $row['time_in'] ? date("g:i A", strtotime($row['time_in'])) : '' ?></td>
                                 <td class="text-center">
                                     <?= ($row['time_out'] && $row['time_out'] !== '00:00:00') ? date("g:i A", strtotime($row['time_out'])) : '' ?>
-                                </td>
-                                <td class="text-center">
-                                    <?php
-                                    $late = 'No';
-                                    if ($row['time_in'] && date('H:i:s', strtotime($row['time_in'])) > '08:00:00') {
-                                        $late = 'Yes';
-                                    }
-                                    echo $late;
-                                    ?>
                                 </td>
                                 <td class="text-center">
                                     <?php
@@ -180,15 +176,26 @@ $dtr_query = $oat->query("SELECT date, time_in, time_out FROM ojt_records WHERE 
                                             $hours -= 1;
                                         }
 
-                                        // Deduct 1 hour ONLY if late (time_in after 8:00 AM)
-                                        if (date('H:i:s', $time_in) > '08:00:00') {
+                                        // Use the policy in effect for this record
+                                        $policy_time_in = $row['time_in_policy'] ?? $default_time_in;
+                                        $policy_time_out = $row['time_out_policy'] ?? $default_time_out;
+
+                                        if ($row['time_in'] && $policy_time_in && date('H:i:s', strtotime($row['time_in'])) > $policy_time_in) {
                                             $hours -= 1;
                                         }
+
+                                        // (Optional) You can use $policy_time_out for future logic, e.g., OT calculation
 
                                         echo max(0, round($hours)) . ' h';
                                     } else {
                                         echo '';
                                     }
+                                    ?>
+                                </td>
+                                <td class="text-center">
+                                    <?php
+                                    // Display the remarks from the database
+                                    echo htmlspecialchars($row['remarks'] ?? '');
                                     ?>
                                 </td>
                             </tr>

@@ -12,6 +12,11 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
+// Fetch default time in/out from site_settings
+$settings = $oat->query("SELECT default_time_in, default_time_out FROM site_settings LIMIT 1")->fetch_assoc();
+$default_time_in = $settings['default_time_in'] ?? '08:00:00';
+$default_time_out = $settings['default_time_out'] ?? '17:00:00';
+
 if (!isset($_GET['code']) || !isset($_GET['date'])) {
     echo "Invalid QR code.";
     exit;
@@ -36,7 +41,13 @@ if ($res && $row = $res->fetch_assoc()) {
             echo "Already timed in today.";
         } else {
             $time_in = date('H:i:s');
-            $oat->query("INSERT INTO ojt_records (user_id, date, time_in) VALUES ($user_id, '$today', '$time_in')");
+            $remarks = 'on time';
+            if (date('H:i:s', strtotime($time_in)) > $default_time_in) {
+                $remarks = 'late';
+            }
+
+            $oat->query("INSERT INTO ojt_records (user_id, date, time_in, time_in_policy, time_out_policy, remarks) VALUES ($user_id, '$date', '$time_in', '$default_time_in', '$default_time_out', '$remarks')
+                ON DUPLICATE KEY UPDATE time_in='$time_in', time_in_policy='$default_time_in', time_out_policy='$default_time_out', remarks='$remarks'");
             echo "Time in successful at $time_in!";
         }
     } else {

@@ -10,6 +10,14 @@
 <!-- Bootstrap 5 Sidebar Navigation -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <style>
+    body {
+    padding-left: 250px; /* Match sidebar width */
+}
+@media (max-width: 991.98px) {
+    body {
+        margin-left: 0 !important;
+    }
+}
     .sidebar-admin {
         width: 250px;
         min-height: 100vh;
@@ -92,9 +100,10 @@
         <a href="manageojt.php" class="nav-link">Manage OJT</a>
         <a href="activeojt.php" class="nav-link">Active OJT</a>
         <a href="reports.php" class="nav-link">Reports</a>
-    </nav>
+        <a href="sitesettings.php" class="nav-link">Site Settings</a>
     <div class="sidebar-footer">
         <a href="../logout.php" class="btn btn-logout">Logout</a>
     </div>
 </aside>
 <!-- Add style="margin-left:250px;" or class="ms-xxl-5" to your main content wrapper for desktop -->
+<!-- Add to your <style> section or nav.php -->
