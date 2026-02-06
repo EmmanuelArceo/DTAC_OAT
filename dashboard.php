@@ -100,7 +100,7 @@ $recent = $oat->query("
             background: var(--glass-bg);
             border: 1px solid var(--glass-border);
             box-shadow: 0 8px 30px rgba(15,23,42,0.06);
-            backdrop-filter: blur(10px);
+       
             border-radius:14px;
         }
         .header{
@@ -234,7 +234,7 @@ $recent = $oat->query("
             </div>
             <div class="actions" data-aos="fade-up" data-aos-delay="100">
                             <a href="dtr.php" class="btn-accent">View DTR</a>
-                            <a href="ot_report.php" class="btn-accent">OT Report</a>
+                            <a href="otreport.php" class="btn-accent">OT Report</a>
                         </div>
             <div class="stats" data-aos="fade-up" data-aos-delay="200">
                 <div class="stat">
@@ -282,10 +282,11 @@ $recent = $oat->query("
                 <table class="table-borderless">
                     <thead>
                         <tr>
-                            <th style="width:30%;">Date</th>
-                            <th style="width:23%;">Time In</th>
-                            <th style="width:23%;">Time Out</th>
-                            <th style="width:24%;">Total Hours</th>
+                            <th style="width:25%;">Date</th>
+                            <th style="width:20%;">Time In</th>
+                            <th style="width:20%;">Time Out</th>
+                            <th style="width:15%;">OT Hours</th>
+                            <th style="width:20%;">Total Hours</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -305,6 +306,29 @@ $recent = $oat->query("
                                     <?php
                                         if ($r['time_out'] && $r['time_out'] !== '00:00:00') {
                                             echo date('g:i A', strtotime($r['time_out']));
+                                        } else {
+                                            echo '<span style="color:var(--muted)">--</span>';
+                                        }
+                                    ?>
+                                </td>
+                                <td>
+                                    <?php
+                                        if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
+                                            $time_in = strtotime($r['time_in']);
+                                            $time_out = strtotime($r['time_out']);
+                                            $regular_end = strtotime(date('Y-m-d', $time_in) . ' ' . $default_time_out);
+
+                                            // OT hours: after default time out, only if approved
+                                            $ot_hours = 0;
+                                            if ($time_out > $regular_end) {
+                                                $ot_date = date('Y-m-d', $time_in);
+                                                $ot_report = $oat->query("SELECT ot_hours FROM ot_reports WHERE student_id = $user_id AND ot_date = '$ot_date' AND approved = 1")->fetch_assoc();
+                                                if ($ot_report) {
+                                                    $ot_hours = (float)$ot_report['ot_hours'];
+                                                }
+                                            }
+
+                                            echo $ot_hours . ' h';
                                         } else {
                                             echo '<span style="color:var(--muted)">--</span>';
                                         }

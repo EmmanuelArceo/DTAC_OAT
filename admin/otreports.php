@@ -15,7 +15,14 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'supe
 // Handle OT approval
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_id'])) {
     $approve_id = intval($_POST['approve_id']);
-    $oat->query("UPDATE ot_reports SET approved = 1 WHERE id = $approve_id");
+    
+    // Fetch OT report details
+    $report = $oat->query("SELECT * FROM ot_reports WHERE id = $approve_id")->fetch_assoc();
+    if ($report) {
+        // Approve the OT report
+        $oat->query("UPDATE ot_reports SET approved = 1 WHERE id = $approve_id");
+    }
+    
     header("Location: otreports.php");
     exit;
 }
@@ -117,6 +124,7 @@ $reports = $oat->query("
                             <th>OT Date</th>
                             <th>Hours</th>
                             <th>Reason</th>
+                            <th>Proof</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -129,6 +137,13 @@ $reports = $oat->query("
                                     <td><?= htmlspecialchars($row['ot_date']) ?></td>
                                     <td><?= htmlspecialchars($row['ot_hours']) ?></td>
                                     <td><?= nl2br(htmlspecialchars($row['ot_reason'])) ?></td>
+                                    <td>
+                                        <?php if (!empty($row['proof_path'])): ?>
+                                            <a href="<?= htmlspecialchars($row['proof_path']) ?>" target="_blank" class="btn btn-sm btn-outline-primary">View Proof</a>
+                                        <?php else: ?>
+                                            No proof
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <?php if (empty($row['approved'])): ?>
                                             <button 
@@ -151,7 +166,7 @@ $reports = $oat->query("
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="6" class="text-center text-muted">No OT reports found.</td>
+                                <td colspan="7" class="text-center text-muted">No OT reports found.</td>
                             </tr>
                         <?php endif; ?>
                     </tbody>

@@ -79,7 +79,7 @@ if ($user_id) {
                 <rect width="24" height="24" rx="6" fill="url(#g)"/>
                 <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#3CB3CC"/><stop offset="1" stop-color="#2aa0b3"/></linearGradient></defs>
             </svg>
-            <span class="text-white fw-bold">OJT Tracker</span>
+            <span class="text-white fw-bold">Attendance Tracker</span>
         </a>
 
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#ojtNavbarMenu" aria-controls="ojtNavbarMenu" aria-expanded="false" aria-label="Toggle navigation">
@@ -116,9 +116,9 @@ if ($user_id) {
     <div id="loading-overlay" role="status" aria-hidden="true">
         <div class="text-center">
             <div class="spinner-border text-secondary" role="status" style="width:3rem;height:3rem">
-                <span class="visually-hidden">Loading...</span>
+                <span class="visually-hidden">Loading</span>
             </div>
-            <div class="mt-2" style="color:#0f172a;font-weight:600">Loading...</div>
+            <div class="mt-2" style="color:#0f172a;font-weight:600">Loading</div>
         </div>
     </div>
 </nav>
