@@ -86,7 +86,7 @@ $ojts = $oat->query("SELECT id, username, fname, lname, email, bio, profile_img,
                                 <?php
                                     $img = '../uploads/noimg.png';
                                     if (!empty($ojt['profile_img']) && file_exists('../' . $ojt['profile_img'])) {
-                                        $img = '../' . $ojt['profile_img'];
+                                       $img = '../' . $ojt['profile_img'] . '?t=' . time();
                                     }
                                 ?>
                                 <img src="<?= htmlspecialchars($img) ?>"

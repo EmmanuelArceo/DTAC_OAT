@@ -70,7 +70,7 @@ $dtr_query = $oat->query("SELECT date, time_in, time_out FROM ojt_records WHERE 
 <body>
     <div class="glass">
         <div class="d-flex align-items-center mb-4">
-            <img src="<?= !empty($ojt['profile_img']) ? '../' . htmlspecialchars($ojt['profile_img']) : '../uploads/noimg.png' ?>" class="profile-img" alt="Profile">
+            <img src="<?= !empty($ojt['profile_img']) ? '../' . htmlspecialchars($ojt['profile_img'] . '?t=' . time()) : '../uploads/noimg.png' ?>" class="profile-img" alt="Profile">
             <div>
                 <div class="dtr-title"><?= htmlspecialchars($ojt['fname'] . ' ' . $ojt['lname']) ?></div>
                 <div class="text-muted">@<?= htmlspecialchars($ojt['username']) ?></div>

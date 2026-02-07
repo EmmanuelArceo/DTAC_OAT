@@ -24,10 +24,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
         if (!is_dir('uploads')) {
             mkdir('uploads', 0777, true);
         }
-        $ext = pathinfo($_FILES['profile_img']['name'], PATHINFO_EXTENSION);
-        $img_path = 'uploads/profile_' . $user_id . '_' . time() . '.' . $ext;
-        move_uploaded_file($_FILES['profile_img']['tmp_name'], $img_path);
-        $oat->query("UPDATE users SET profile_img = '$img_path' WHERE id = $user_id");
+        
+        // Get current profile image path
+        $old_img = $oat->query("SELECT profile_img FROM users WHERE id = $user_id")->fetch_assoc()['profile_img'];
+        
+        if ($old_img && file_exists($old_img)) {
+            // Replace the old image by overwriting the file
+            $img_path = $old_img;
+            move_uploaded_file($_FILES['profile_img']['tmp_name'], $img_path);
+            // No DB update needed since path remains the same
+        } else {
+            // No old image, create a new one
+            $ext = pathinfo($_FILES['profile_img']['name'], PATHINFO_EXTENSION);
+            $img_path = 'uploads/profile_' . $user_id . '_' . time() . '.' . $ext;
+            move_uploaded_file($_FILES['profile_img']['tmp_name'], $img_path);
+            $oat->query("UPDATE users SET profile_img = '$img_path' WHERE id = $user_id");
+        }
     }
 
     $oat->query("UPDATE users SET bio = '" . $oat->real_escape_string($bio) . "' WHERE id = $user_id");
@@ -141,7 +153,7 @@ $user = $oat->query("SELECT username, bio, profile_img FROM users WHERE id = $us
         <?php endif; ?>
         <form method="POST" enctype="multipart/form-data" class="mb-3">
             <div class="d-flex flex-column align-items-center mb-3">
-                <img src="<?= !empty($user['profile_img']) ? $user['profile_img'] : 'https://ui-avatars.com/api/?name=' . urlencode($user['username']) ?>" alt="Profile Image" class="profile-img" id="profilePreview">
+                <img src="<?= !empty($user['profile_img']) ? $user['profile_img'] . '?t=' . time() : 'https://ui-avatars.com/api/?name=' . urlencode($user['username']) ?>" alt="Profile Image" class="profile-img" id="profilePreview">
                 <label class="form-label mt-2" for="profile_img" style="color:var(--accent-deep);font-weight:600;">Change Photo</label>
                 <input type="file" name="profile_img" id="profile_img" accept="image/*" class="form-control" style="max-width:220px;" onchange="previewProfileImg(event)">
             </div>

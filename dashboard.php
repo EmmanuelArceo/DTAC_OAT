@@ -23,7 +23,7 @@ $role = $_SESSION['role'] ?? 'ojt';
 // Fix profile image path
 $img = 'uploads/noimg.png';
 if (!empty($user_info['profile_img']) && file_exists($user_info['profile_img'])) {
-    $img = $user_info['profile_img'];
+    $img = $user_info['profile_img'] . '?t=' . time();
 }
 
 // Fetch required hours

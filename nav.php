@@ -22,7 +22,7 @@ $profile_img = '';
 if ($user_id) {
     $user = $oat->query("SELECT profile_img, position FROM users WHERE id = $user_id")->fetch_assoc();
     if (!empty($user['profile_img'])) {
-        $profile_img = $user['profile_img'];
+        $profile_img = $user['profile_img'] . '?t=' . time();
     } else {
         // Fallback avatar
         $profile_img = 'https://ui-avatars.com/api/?name=' . urlencode(trim("$fname $lname")) . '&background=3CB3CC&color=fff';
