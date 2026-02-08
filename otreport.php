@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_ot_report'])) 
         }
     }
 
-    // Save OT report to database
+    // Save OT report to database using prepared statement
     $stmt = $oat->prepare("INSERT INTO ot_reports (student_id, ot_hours, ot_date, ot_reason) VALUES (?, ?, ?, ?)");
     $stmt->bind_param("iiss", $student_id, $ot_hours, $ot_date, $ot_reason);
     $stmt->execute();
@@ -40,27 +40,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_ot_report'])) 
     echo "<div class='alert alert-success mt-3'>OT report submitted successfully!</div>";
 }
 
-// Fetch default time in and out from site_settings
-$settings = $oat->query("SELECT default_time_in, default_time_out FROM site_settings LIMIT 1")->fetch_assoc();
+// Fetch default time in/out and lunch from site_settings using prepared statement
+$user_id = $_SESSION['user_id'];
+$stmt = $oat->prepare("SELECT default_time_in, default_time_out FROM site_settings LIMIT 1");
+$stmt->execute();
+$settings = $stmt->get_result()->fetch_assoc();
 $default_time_in = $settings['default_time_in'] ?? '08:00:00';
 $default_time_out = $settings['default_time_out'] ?? '17:00:00';
 
-// Calculate standard working hours
-$start = strtotime($default_time_in);
-$end = strtotime($default_time_out);
+// Check if user is in a time group and fetch group times
+$user_policy_time_in = $default_time_in;
+$user_policy_time_out = $default_time_out;
+$stmt = $oat->prepare("SELECT tg.time_in, tg.time_out FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$group = $stmt->get_result()->fetch_assoc();
+if ($group) {
+    $user_policy_time_in = $group['time_in'];
+    $user_policy_time_out = $group['time_out'];
+}
+
+// Calculate standard working hours based on user's policy
+$start = strtotime($user_policy_time_in);
+$end = strtotime($user_policy_time_out);
 $standard_hours = ($end - $start) / 3600; // hours
 
-// Fetch OT summaries for admin
+// Fetch OT summaries for admin using prepared statement
 $ot_summaries = [];
 if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
-    $ot_summaries = $oat->query("
+    $stmt = $oat->prepare("
         SELECT u.fname, u.lname, MONTH(otr.ot_date) AS month, YEAR(otr.ot_date) AS year, SUM(otr.ot_hours) AS total_ot
         FROM ot_reports otr
         JOIN users u ON otr.student_id = u.id
-        WHERE otr.status = 'approved'
+        WHERE otr.approved = 1
         GROUP BY u.id, YEAR(otr.ot_date), MONTH(otr.ot_date)
         ORDER BY year DESC, month DESC
-    ")->fetch_all(MYSQLI_ASSOC);
+    ");
+    $stmt->execute();
+    $ot_summaries = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 ?>
 <!DOCTYPE html>
@@ -152,7 +169,7 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
     <main class="wrap">
         <div class="glass">
             <div class="title">Submit OT Report</div>
-            <div class="subtitle">Send your overtime report. OT starts after default time out (<?php echo htmlspecialchars($default_time_out); ?>).</div>
+            <div class="subtitle">Send your overtime report. OT starts after your policy time out (<?php echo htmlspecialchars(date('g:i A', strtotime($user_policy_time_out))); ?>).</div>
             <form method="POST" action="otreport.php" enctype="multipart/form-data" autocomplete="off">
                 <div class="mb-3">
                     <label class="form-label">Time Inputs (for auto-calculation, 12-hour format)</label>
@@ -160,8 +177,8 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
                         <div style="display: flex; flex-direction: column; gap: 5px;">
                             <label style="font-size: 12px; color: var(--muted);">OT Start</label>
                             <div style="display: flex; gap: 5px;">
-                                <input type="number" id="start_hour" class="form-control" value="5" min="1" max="12" step="1" readonly>
-                                <span class="form-control" style="width: 80px; background: #e9ecef; text-align: center;">PM</span>
+                                <input type="number" id="start_hour" class="form-control" value="<?php echo (int)date('g', strtotime($user_policy_time_out)); ?>" min="1" max="12" step="1" readonly>
+                                <span class="form-control" style="width: 80px; background: #e9ecef; text-align: center;"><?php echo date('A', strtotime($user_policy_time_out)); ?></span>
                             </div>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 5px;">
@@ -223,8 +240,9 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
     </main>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Auto-calculate OT hours: hours worked after default time out
-        const defaultTimeOutHour = 17; // 5 PM
+        // Auto-calculate OT hours: hours worked after user's policy time out
+        const defaultTimeOutHour = <?php echo (int)date('G', strtotime($user_policy_time_out)); ?>; // 24-hour format hour
+        const startAmpm = '<?php echo date('A', strtotime($user_policy_time_out)); ?>';
         function convertTo24(hour, ampm) {
             hour = parseInt(hour);
             if (ampm === 'PM' && hour !== 12) hour += 12;
@@ -233,19 +251,18 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
         }
         function calculateOT() {
             const startHour = document.getElementById('start_hour').value;
-            const startAmpm = 'PM'; // fixed
             const endHour = document.getElementById('end_hour').value;
             const endAmpm = document.getElementById('end_ampm').value;
             if (startHour && endHour) {
                 const start24 = convertTo24(startHour, startAmpm);
                 const end24 = convertTo24(endHour, endAmpm);
-                // Validate end time is not below default time out
+                // Validate end time is not below user's policy time out
                 if (end24 < defaultTimeOutHour) {
-                    alert('End time cannot be before default time out (5 PM).');
+                    alert('End time cannot be before your policy time out (<?php echo date('g:i A', strtotime($user_policy_time_out)); ?>).');
                     document.getElementById('end_hour').value = '';
                     return;
                 }
-                // OT is hours after default time out
+                // OT is hours after policy time out
                 const otStart = start24 > defaultTimeOutHour ? start24 : defaultTimeOutHour;
                 const otHours = Math.max(0, end24 - otStart).toFixed(1);
                 document.getElementById('ot_hours').value = otHours;

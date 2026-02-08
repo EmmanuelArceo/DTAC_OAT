@@ -15,12 +15,84 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'supe
 // Handle OT approval
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_id'])) {
     $approve_id = intval($_POST['approve_id']);
+    $approval_type = $_POST['approval_type'] ?? 'deny';
     
-    // Fetch OT report details
-    $report = $oat->query("SELECT * FROM ot_reports WHERE id = $approve_id")->fetch_assoc();
+    // Fetch OT report details using prepared statement
+    $stmt = $oat->prepare("SELECT * FROM ot_reports WHERE id = ?");
+    $stmt->bind_param("i", $approve_id);
+    $stmt->execute();
+    $report = $stmt->get_result()->fetch_assoc();
+    
     if ($report) {
-        // Approve the OT report
-        $oat->query("UPDATE ot_reports SET approved = 1 WHERE id = $approve_id");
+        // Fetch user's policy time out (check time group or default)
+        $stmt = $oat->prepare("SELECT default_time_out FROM site_settings LIMIT 1");
+        $stmt->execute();
+        $settings = $stmt->get_result()->fetch_assoc();
+        $default_time_out = $settings['default_time_out'] ?? '17:00:00';
+        $user_policy_time_out = $default_time_out;
+        $stmt = $oat->prepare("SELECT tg.time_out FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
+        $stmt->bind_param("i", $report['student_id']);
+        $stmt->execute();
+        $group = $stmt->get_result()->fetch_assoc();
+        if ($group) {
+            $user_policy_time_out = $group['time_out'];
+        }
+        
+        // Fetch actual time out from ojt_records
+        $stmt = $oat->prepare("SELECT time_out FROM ojt_records WHERE user_id = ? AND date = ?");
+        $stmt->bind_param("is", $report['student_id'], $report['ot_date']);
+        $stmt->execute();
+        $record = $stmt->get_result()->fetch_assoc();
+        
+        $approved_hours = 0;
+        if ($record && $record['time_out'] && $record['time_out'] !== '00:00:00') {
+            $actual_time_out = strtotime($record['time_out']);
+            $policy_time_out_ts = strtotime($user_policy_time_out);
+            $actual_ot_hours = max(0, ($actual_time_out - $policy_time_out_ts) / 3600);
+            
+            if ($actual_ot_hours >= $report['ot_hours']) {
+                // Completed full claimed hours
+                $approved_hours = $report['ot_hours'];
+                $stmt = $oat->prepare("UPDATE ot_reports SET approved = 1 WHERE id = ?");
+                $stmt->bind_param("i", $approve_id);
+                $stmt->execute();
+                $_SESSION['message'] = "OT report approved successfully for " . $approved_hours . " hours.";
+            } else {
+                // Not completed
+                if ($approval_type === 'full') {
+                    $approved_hours = $report['ot_hours'];
+                    $stmt = $oat->prepare("UPDATE ot_reports SET approved = 1 WHERE id = ?");
+                    $stmt->bind_param("i", $approve_id);
+                    $stmt->execute();
+                    $_SESSION['message'] = "OT report approved for full claimed hours (" . $approved_hours . " hours) despite incomplete time.";
+                } elseif ($approval_type === 'actual') {
+                    $approved_hours = round($actual_ot_hours, 2);
+                    $stmt = $oat->prepare("UPDATE ot_reports SET approved = 1 WHERE id = ?");
+                    $stmt->bind_param("i", $approve_id);
+                    $stmt->execute();
+                    $_SESSION['message'] = "OT report approved for actual hours (" . $approved_hours . " hours).";
+                } else {
+                    // Deny: Store denial in database
+                    $stmt = $oat->prepare("UPDATE ot_reports SET approved = 0, denied_at = NOW() WHERE id = ?");
+                    $stmt->bind_param("i", $approve_id);
+                    $stmt->execute();
+                    $_SESSION['message'] = "OT report denied.";
+                }
+            }
+        } else {
+            // Deny if no valid record
+            $stmt = $oat->prepare("UPDATE ot_reports SET approved = 0, denied_at = NOW() WHERE id = ?");
+            $stmt->bind_param("i", $approve_id);
+            $stmt->execute();
+            $_SESSION['message'] = "OT report denied. No valid time out record found for the OT date.";
+        }
+        
+        // Store approved OT hours in ojt_records if approved
+        if ($approved_hours > 0) {
+            $stmt = $oat->prepare("UPDATE ojt_records SET ot_hours = ? WHERE user_id = ? AND date = ?");
+            $stmt->bind_param("dis", $approved_hours, $report['student_id'], $report['ot_date']);
+            $stmt->execute();
+        }
     }
     
     header("Location: otreports.php");
@@ -115,6 +187,10 @@ $reports = $oat->query("
         <div class="glass">
             <div class="title">OT Reports</div>
             <div class="subtitle">All submitted overtime reports from OJT students.</div>
+            <?php if (isset($_SESSION['message'])): ?>
+                <div class="alert alert-info mt-3"><?php echo htmlspecialchars($_SESSION['message']); unset($_SESSION['message']); ?></div>
+            <?php endif; ?>
+
             <div class="table-responsive">
                 <table class="table align-middle">
                     <thead>
@@ -130,7 +206,39 @@ $reports = $oat->query("
                     </thead>
                     <tbody>
                         <?php if ($reports && $reports->num_rows > 0): ?>
-                            <?php while($row = $reports->fetch_assoc()): ?>
+                            <?php while($row = $reports->fetch_assoc()): 
+                                // Calculate actual OT hours for this report
+                                $actual_ot_hours = 0;
+                                $actual_time_out_display = 'N/A';
+                                // Fetch user's policy time out
+                                $stmt = $oat->prepare("SELECT default_time_out FROM site_settings LIMIT 1");
+                                $stmt->execute();
+                                $settings = $stmt->get_result()->fetch_assoc();
+                                $default_time_out = $settings['default_time_out'] ?? '17:00:00';
+                                $user_policy_time_out = $default_time_out;
+                                $stmt = $oat->prepare("SELECT tg.time_out FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
+                                $stmt->bind_param("i", $row['student_id']);
+                                $stmt->execute();
+                                $group = $stmt->get_result()->fetch_assoc();
+                                if ($group) {
+                                    $user_policy_time_out = $group['time_out'];
+                                }
+                                // Fetch actual time out
+                                $stmt = $oat->prepare("SELECT time_out FROM ojt_records WHERE user_id = ? AND date = ?");
+                                $stmt->bind_param("is", $row['student_id'], $row['ot_date']);
+                                $stmt->execute();
+                                $record = $stmt->get_result()->fetch_assoc();
+                                if ($record && $record['time_out'] && $record['time_out'] !== '00:00:00') {
+                                    $actual_time_out = strtotime($record['time_out']);
+                                    $policy_time_out_ts = strtotime($user_policy_time_out);
+                                    $actual_ot_hours = max(0, ($actual_time_out - $policy_time_out_ts) / 3600);
+                                    $actual_time_out_display = date('g:i A', $actual_time_out);
+                                }
+                                $hours_part = floor($actual_ot_hours);
+                                $minutes_part = round(($actual_ot_hours - $hours_part) * 60);
+                                $actual_ot_hours_display = $hours_part . ' hours ' . $minutes_part . ' minutes';
+                            ?>
+
                                 <tr>
                                     <td><?= htmlspecialchars(date('Y-m-d H:i', strtotime($row['submitted_at']))) ?></td>
                                     <td><?= htmlspecialchars($row['fname'] . ' ' . $row['lname']) ?></td>
@@ -153,7 +261,9 @@ $reports = $oat->query("
                                                     '<?= htmlspecialchars(addslashes($row['fname'] . ' ' . $row['lname'])) ?>', 
                                                     '<?= htmlspecialchars(addslashes($row['ot_date'])) ?>', 
                                                     '<?= htmlspecialchars(addslashes($row['ot_hours'])) ?>', 
-                                                    '<?= htmlspecialchars(addslashes($row['ot_reason'])) ?>'
+                                                    '<?= htmlspecialchars(addslashes($row['ot_reason'])) ?>',
+                                                    '<?= htmlspecialchars(addslashes($actual_ot_hours_display)) ?>',
+                                                    '<?= htmlspecialchars(addslashes($actual_time_out_display)) ?>'
                                                 )"
                                             >
                                                 Approve
@@ -195,14 +305,29 @@ $reports = $oat->query("
     </div>
 
     <script>
-function openApproveModal(id, name, date, hours, reason) {
+function openApproveModal(id, name, date, hours, reason, actual_ot_hours_display, actual_time_out_display) {
     var modal = new bootstrap.Modal(document.getElementById('approveModal'));
     document.getElementById('approve_id_modal').value = id;
-    document.getElementById('modal_body_content').innerHTML = 
-        `<p>Approve OT for <strong>${name}</strong>?</p>
-         <p>Date: <strong>${date}</strong></p>
-         <p>Hours: <strong>${hours}</strong></p>
-         <p>Reason: <strong>${reason}</strong></p>`;
+    
+    var content = `<p>Approve OT for <strong>${name}</strong>?</p>
+                   <p>Date: <strong>${date}</strong></p>
+                   <p>Hours: <strong>${hours}</strong></p>
+                   <p>Reason: <strong>${reason}</strong></p>`;
+    
+    var actual_ot_hours_num = parseFloat('<?= $actual_ot_hours ?>'); // Assuming passed
+    if (actual_ot_hours_num < parseFloat(hours)) {
+        content += `
+            <p><strong>They didn't actually finish the OT.</strong></p>
+            <p>Actual time out: ${actual_time_out_display}. Actual OT: ${actual_ot_hours_display}.</p>
+            <div>
+                <label><input type="radio" name="approval_type" value="full" checked> Approve Full Claimed Hours (${hours} hours)</label><br>
+                <label><input type="radio" name="approval_type" value="actual"> Approve Only Actual Hours (${actual_ot_hours_display})</label><br>
+                <label><input type="radio" name="approval_type" value="deny"> Deny</label>
+            </div>
+        `;
+    }
+    
+    document.getElementById('modal_body_content').innerHTML = content;
     modal.show();
 }
 </script>

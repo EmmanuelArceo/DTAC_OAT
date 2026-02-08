@@ -1,8 +1,8 @@
 <?php
 
-  if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 include 'db.php';
 include 'nav.php';
 // Redirect to login if not signed in
@@ -11,11 +11,14 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// Fetch user info
+// Fetch user info using prepared statement
 $user_id = $_SESSION['user_id'];
-$user_info = $oat->query("SELECT fname, lname, mname, position, profile_img FROM users WHERE id = $user_id")->fetch_assoc();
+$stmt = $oat->prepare("SELECT fname, lname, mname, position, profile_img FROM users WHERE id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$user_info = $stmt->get_result()->fetch_assoc();
 $full_name = ($user_info['fname'] ?? '') . ' ' .
-    (isset($user_info['mname']) && $user_info['mname'] ? strtoupper(substr($user_info['mname'],0,1)) . '. ' : '') .
+    (isset($user_info['mname']) && $user_info['mname'] ? strtoupper(substr($user_info['mname'], 0, 1)) . '. ' : '') .
     ($user_info['lname'] ?? '');
 $position = $user_info['position'] ?? '';
 $role = $_SESSION['role'] ?? 'ojt';
@@ -26,43 +29,57 @@ if (!empty($user_info['profile_img']) && file_exists($user_info['profile_img']))
     $img = $user_info['profile_img'] . '?t=' . time();
 }
 
-// Fetch required hours
-$req = $oat->query("SELECT required_hours FROM ojt_requirements WHERE user_id = $user_id")->fetch_assoc();
+// Fetch required hours using prepared statement
+$stmt = $oat->prepare("SELECT required_hours FROM ojt_requirements WHERE user_id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$req = $stmt->get_result()->fetch_assoc();
 $required_hours = (float)($req['required_hours'] ?? 0);
 
-// Fetch default time in from site_settings
-$settings = $oat->query("SELECT default_time_in FROM site_settings LIMIT 1")->fetch_assoc();
-$default_time_in = $settings['default_time_in'] ?? '08:00:00';
+// Fetch default time in/out and lunch from default time group using prepared statement
+$stmt = $oat->prepare("SELECT time_in, time_out, lunch_start, lunch_end FROM time_groups WHERE name = 'Default' LIMIT 1");
+$stmt->execute();
+$settings = $stmt->get_result()->fetch_assoc();
+$default_time_in = $settings['time_in'] ?? '08:00:00';
+$default_time_out = $settings['time_out'] ?? '17:00:00';
+$default_lunch_start = $settings['lunch_start'] ?? '12:00:00';
+$default_lunch_end = $settings['lunch_end'] ?? '13:00:00'; // Updated default to 1h lunch
 
-// Fetch default time out from site_settings
-$default_time_out = $settings['default_time_out'] ?? '17:00:00';
+// Check if user is in a time group and fetch group times
+$user_policy_time_in = $default_time_in;
+$user_policy_time_out = $default_time_out;
+$user_lunch_start = $default_lunch_start;
+$user_lunch_end = $default_lunch_end;
+$stmt = $oat->prepare("SELECT tg.time_in, tg.time_out, tg.lunch_start, tg.lunch_end FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$group = $stmt->get_result()->fetch_assoc();
+if ($group) {
+    $user_policy_time_in = $group['time_in'];
+    $user_policy_time_out = $group['time_out'];
+    $user_lunch_start = $group['lunch_start'] ?: $default_lunch_start;
+    $user_lunch_end = $group['lunch_end'] ?: $default_lunch_end;
+}
 
 // Fetch completed hours (only for valid time_out records) with policy adjustments
 $total_completed = 0;
-$records = $oat->query("
-    SELECT time_in, time_out 
-    FROM ojt_records 
-    WHERE user_id = $user_id 
-    AND time_out IS NOT NULL 
-    AND time_out != '00:00:00' 
-    AND time_out > time_in
-");
+$stmt = $oat->prepare("SELECT time_in, time_out, time_in_policy, time_out_policy, ot_hours FROM ojt_records WHERE user_id = ? AND time_out IS NOT NULL AND time_out != '00:00:00' AND time_out > time_in");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$records = $stmt->get_result();
 while ($row = $records->fetch_assoc()) {
-    $adjusted_hours = calculate_session_hours($row['time_in'], $row['time_out'], $default_time_in, $default_time_out, $user_id, $oat);
-    $total_completed += $adjusted_hours;
+    $result = calculate_session_hours($row, $user_policy_time_in, $user_policy_time_out, $user_lunch_start, $user_lunch_end, $user_id, $oat);
+    $total_completed += $result['regular'] + $result['ot'];
 }
-$completed_hours = $total_completed;
+$completed_hours = floor($total_completed);
 $remaining_hours = max(0, $required_hours - $completed_hours);
 $progress = $required_hours > 0 ? min(100, round(($completed_hours / $required_hours) * 100)) : 0;
 
-// recent sessions (last 5)
-$recent = $oat->query("
-    SELECT date, time_in, time_out 
-    FROM ojt_records 
-    WHERE user_id = $user_id 
-    ORDER BY date DESC, time_in DESC
-    LIMIT 5
-");
+// recent sessions (last 5) using prepared statement
+$stmt = $oat->prepare("SELECT date, time_in, time_out, ot_hours, time_in_policy FROM ojt_records WHERE user_id = ? ORDER BY date DESC, time_in DESC LIMIT 5");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$recent = $stmt->get_result();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -279,12 +296,14 @@ $recent = $oat->query("
                     <div style="color:var(--muted);font-size:13px"><?= $recent ? $recent->num_rows : 0 ?> latest</div>
                 </div>
                 <?php if ($recent && $recent->num_rows > 0): ?>
+                <div style="overflow-x: auto;">
                 <table class="table-borderless">
                     <thead>
                         <tr>
-                            <th style="width:25%;">Date</th>
-                            <th style="width:20%;">Time In</th>
-                            <th style="width:20%;">Time Out</th>
+                            <th style="width:20%;">Date</th>
+                            <th style="width:15%;">Time In</th>
+                            <th style="width:15%;">Time Out</th>
+                            <th style="width:15%;">Regular Hours</th>
                             <th style="width:15%;">OT Hours</th>
                             <th style="width:20%;">Total Hours</th>
                         </tr>
@@ -295,8 +314,17 @@ $recent = $oat->query("
                                 <td><?= htmlspecialchars($r['date']) ?></td>
                                 <td>
                                     <?php
-                                        if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
-                                            echo date('g:i A', strtotime($r['time_in']));
+                                        if ($r['time_in']) {
+                                            $time_in_ts = strtotime($r['time_in']);
+                                            $policy_in = $r['time_in_policy'] ?? $user_policy_time_in;
+                                            $policy_in_time_ts = strtotime(date('Y-m-d', $time_in_ts) . ' ' . $policy_in);
+                                            $is_late = $time_in_ts >= $policy_in_time_ts;
+                                            $time_in_display = date('g:i A', $time_in_ts);
+                                            if ($is_late) {
+                                                echo '<span style="color: red;">' . htmlspecialchars($time_in_display) . '</span>';
+                                            } else {
+                                                echo htmlspecialchars($time_in_display);
+                                            }
                                         } else {
                                             echo '<span style="color:var(--muted)">--</span>';
                                         }
@@ -314,21 +342,20 @@ $recent = $oat->query("
                                 <td>
                                     <?php
                                         if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
-                                            $time_in = strtotime($r['time_in']);
-                                            $time_out = strtotime($r['time_out']);
-                                            $regular_end = strtotime(date('Y-m-d', $time_in) . ' ' . $default_time_out);
+                                            $result = calculate_session_hours($r, $user_policy_time_in, $user_policy_time_out, $user_lunch_start, $user_lunch_end, $user_id, $oat);
+                                            $reg = $result['regular'];
+                                            echo floor($reg) . ' h';
+                                        } else {
+                                            echo '<span style="color:var(--muted)">--</span>';
+                                        }
+                                    ?>
+                                </td>
 
-                                            // OT hours: after default time out, only if approved
-                                            $ot_hours = 0;
-                                            if ($time_out > $regular_end) {
-                                                $ot_date = date('Y-m-d', $time_in);
-                                                $ot_report = $oat->query("SELECT ot_hours FROM ot_reports WHERE student_id = $user_id AND ot_date = '$ot_date' AND approved = 1")->fetch_assoc();
-                                                if ($ot_report) {
-                                                    $ot_hours = (float)$ot_report['ot_hours'];
-                                                }
-                                            }
-
-                                            echo $ot_hours . ' h';
+                                <td>
+                                    <?php
+                                        if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
+                                            $ot_hours = (float)($r['ot_hours'] ?? 0);
+                                            echo floor($ot_hours) . ' h';
                                         } else {
                                             echo '<span style="color:var(--muted)">--</span>';
                                         }
@@ -337,38 +364,8 @@ $recent = $oat->query("
                                 <td>
                                     <?php
                                         if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
-                                            $time_in = strtotime($r['time_in']);
-                                            $time_out = strtotime($r['time_out']);
-                                            $policy_in_time = strtotime(date('Y-m-d', $time_in) . ' ' . $default_time_in);
-                                            $regular_end = strtotime(date('Y-m-d', $time_in) . ' ' . $default_time_out);
-
-                                            // Late logic: if time_in > default_time_in, start from next full hour
-                                            if ($time_in > $policy_in_time) {
-                                                $count_start = strtotime(date('Y-m-d H:00:00', $time_in) . ' +1 hour');
-                                            } else {
-                                                $count_start = max($time_in, $policy_in_time);
-                                            }
-                                            $reg_count_end = min($time_out, $regular_end);
-                                            $regular_hours = ($reg_count_end - $count_start) / 3600;
-
-                                            // Deduct 1 hour for lunch if overlaps regular hours
-                                            $lunch_start = strtotime(date('Y-m-d', $count_start) . ' 12:00:00');
-                                            $lunch_end = strtotime(date('Y-m-d', $count_start) . ' 13:00:00');
-                                            if ($count_start < $lunch_end && $reg_count_end > $lunch_start) {
-                                                $regular_hours -= 1;
-                                            }
-
-                                            // OT hours: after default time out, only if approved
-                                            $ot_hours = 0;
-                                            if ($time_out > $regular_end) {
-                                                $ot_date = date('Y-m-d', $time_in);
-                                                $ot_report = $oat->query("SELECT ot_hours FROM ot_reports WHERE student_id = $user_id AND ot_date = '$ot_date' AND approved = 1")->fetch_assoc();
-                                                if ($ot_report) {
-                                                    $ot_hours = (float)$ot_report['ot_hours'];
-                                                }
-                                            }
-
-                                            echo max(0, round($regular_hours + $ot_hours)) . ' h';
+                                            $result = calculate_session_hours($r, $user_policy_time_in, $user_policy_time_out, $user_lunch_start, $user_lunch_end, $user_id, $oat);
+                                            echo $result['total'] . ' h';
                                         } else {
                                             echo '<span style="color:var(--muted)">--</span>';
                                         }
@@ -378,6 +375,7 @@ $recent = $oat->query("
                         <?php endwhile; ?>
                     </tbody>
                 </table>
+                </div>
                 <?php else: ?>
                     <div style="padding:18px;color:var(--muted);">No recent sessions yet.</div>
                 <?php endif; ?>
@@ -395,38 +393,41 @@ $recent = $oat->query("
 </html>
 
 <?php
-function calculate_session_hours($time_in_str, $time_out_str, $default_time_in, $default_time_out, $user_id, $oat) {
-    $time_in = strtotime($time_in_str);
-    $time_out = strtotime($time_out_str);
-    $policy_in_time = strtotime(date('Y-m-d', $time_in) . ' ' . $default_time_in);
-    $regular_end = strtotime(date('Y-m-d', $time_in) . ' ' . $default_time_out);
+function calculate_session_hours($row, $user_policy_time_in, $user_policy_time_out, $user_lunch_start, $user_lunch_end, $user_id, $oat) {
+    if (!$row['time_in'] || !$row['time_out'] || $row['time_out'] === '00:00:00') {
+        return ['regular' => 0, 'ot' => 0, 'total' => 0];
+    }
 
-    // Late logic: if time_in > default_time_in, start from next full hour
-    if ($time_in > $policy_in_time) {
+    $time_in = strtotime($row['time_in']);
+    $time_out = strtotime($row['time_out']);
+    $policy_time_in = $user_policy_time_in; // Always use current user policy
+    $policy_time_out = $user_policy_time_out; // Always use current user policy
+
+    $regular_end = strtotime($policy_time_out);
+    $policy_in_time = strtotime(date('Y-m-d', $time_in) . ' ' . $policy_time_in);
+
+    // If late by 1 hour or more, start counting from next full hour; otherwise, start from actual time in
+    $lateness = $time_in - $policy_in_time;
+    if ($lateness >= 3600) {
         $count_start = strtotime(date('Y-m-d H:00:00', $time_in) . ' +1 hour');
     } else {
-        $count_start = max($time_in, $policy_in_time);
-    }
-    $reg_count_end = min($time_out, $regular_end);
-    $regular_hours = ($reg_count_end - $count_start) / 3600;
-
-    // Deduct 1 hour for lunch if overlaps regular hours
-    $lunch_start = strtotime(date('Y-m-d', $count_start) . ' 12:00:00');
-    $lunch_end = strtotime(date('Y-m-d', $count_start) . ' 13:00:00');
-    if ($count_start < $lunch_end && $reg_count_end > $lunch_start) {
-        $regular_hours -= 1;
+        $count_start = $time_in;
     }
 
-    // OT hours: after default time out, only if approved
-    $ot_hours = 0;
-    if ($time_out > $regular_end) {
-        $ot_date = date('Y-m-d', $time_in);
-        $ot_report = $oat->query("SELECT ot_hours FROM ot_reports WHERE student_id = $user_id AND ot_date = '$ot_date' AND approved = 1")->fetch_assoc();
-        if ($ot_report) {
-            $ot_hours = (float)$ot_report['ot_hours'];
-        }
-    }
+    // Regular hours: up to official time out
+    $reg_hours = min($time_out, $regular_end) - $count_start;
+    $reg_hours = $reg_hours / 3600;
 
-    return max(0, round($regular_hours + $ot_hours));
+    // Deduct overlapping lunch break hours (use stored lunch if available, else current)
+    $lunch_start = strtotime(date('Y-m-d', $count_start) . ' ' . ($row['lunch_start'] ?? $user_lunch_start));
+    $lunch_end = strtotime(date('Y-m-d', $count_start) . ' ' . ($row['lunch_end'] ?? $user_lunch_end));
+    $overlap = max(0, min($time_out, $lunch_end) - max($count_start, $lunch_start));
+    $reg_hours -= $overlap / 3600;
+
+    // OT hours: from ojt_records
+    $ot_hours = (float)($row['ot_hours'] ?? 0);
+
+    $total_hours = max(0, floor($reg_hours + $ot_hours));
+    return ['regular' => max(0, $reg_hours), 'ot' => $ot_hours, 'total' => $total_hours];
 }
 ?>
