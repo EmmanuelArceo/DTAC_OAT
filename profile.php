@@ -177,7 +177,7 @@ $user = $oat->query("SELECT username, bio, profile_img FROM users WHERE id = $us
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body text-center">
-            <p class="mb-3">Are you sure you want to logout?<br>This will also time you out in DTR for the current Day.</p>
+            <p class="mb-3">Are you sure you want to logout?<br>This will also delete your DTR record for the current day.</p>
             <button id="confirmLogout" class="btn btn-danger px-4 me-2">Logout</button>
             <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
           </div>

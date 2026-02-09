@@ -241,16 +241,16 @@ function calculateTotalHours($row, $user_policy_time_in, $user_policy_time_out, 
                                     ?>
                                 </td>
                                 <td class="text-center">
-                                    <?= ($row['time_out'] && $row['time_out'] !== '00:00:00') ? date("g:i A", strtotime($row['time_out'])) : '' ?>
+                                    <?= ($row['time_out'] && $row['time_out'] !== '00:00:00') ? date("g:i A", strtotime($row['time_out'])) : '--' ?>
                                 </td>
                                 <td class="text-center">
-                                    <?= $hours['total'] ?>
+                                    <?= $hours['total'] ?: '--' ?>
                                 </td>
                                 <td class="text-center">
-                                    <?= $hours['ot'] ?>
+                                    <?= $hours['ot'] ?: '--' ?>
                                 </td>
                                 <td class="text-center">
-                                    <?= htmlspecialchars($row['remarks'] ?? '') ?>
+                                    <?= htmlspecialchars($row['remarks'] ?? '--') ?>
                                 </td>
                             </tr>
                         <?php endwhile; ?>
