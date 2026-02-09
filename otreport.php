@@ -5,53 +5,28 @@ if (session_status() === PHP_SESSION_NONE) {
 include 'db.php';
 include 'nav.php';
 
-// Redirect to login if not signed in
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit;
 }
 
-// Handle OT report submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_ot_report'])) {
-    $student_id = $_SESSION['user_id'];
-    $ot_hours = $_POST['ot_hours'];
-    $ot_date = $_POST['ot_date'];
-    $ot_reason = $_POST['ot_reason'];
-    $proof_path = '';
-
-    // Handle file upload
-    if (isset($_FILES['ot_proof']) && $_FILES['ot_proof']['error'] === UPLOAD_ERR_OK) {
-        $upload_dir = 'uploads/ot_proofs/';
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0755, true);
-        }
-        $file_name = uniqid() . '_' . basename($_FILES['ot_proof']['name']);
-        $file_path = $upload_dir . $file_name;
-        if (move_uploaded_file($_FILES['ot_proof']['tmp_name'], $file_path)) {
-            $proof_path = $file_path;
-        }
-    }
-
-    // Save OT report to database using prepared statement
-    $stmt = $oat->prepare("INSERT INTO ot_reports (student_id, ot_hours, ot_date, ot_reason) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("iiss", $student_id, $ot_hours, $ot_date, $ot_reason);
-    $stmt->execute();
-
-    echo "<div class='alert alert-success mt-3'>OT report submitted successfully!</div>";
-}
-
-// Fetch default time in/out and lunch from site_settings using prepared statement
 $user_id = $_SESSION['user_id'];
+
+// fetch policy times
 $stmt = $oat->prepare("SELECT default_time_in, default_time_out FROM site_settings LIMIT 1");
 $stmt->execute();
 $settings = $stmt->get_result()->fetch_assoc();
 $default_time_in = $settings['default_time_in'] ?? '08:00:00';
 $default_time_out = $settings['default_time_out'] ?? '17:00:00';
 
-// Check if user is in a time group and fetch group times
 $user_policy_time_in = $default_time_in;
 $user_policy_time_out = $default_time_out;
-$stmt = $oat->prepare("SELECT tg.time_in, tg.time_out FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
+$stmt = $oat->prepare("
+    SELECT tg.time_in, tg.time_out
+    FROM user_time_groups utg
+    JOIN time_groups tg ON utg.group_id = tg.id
+    WHERE utg.user_id = ? LIMIT 1
+");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $group = $stmt->get_result()->fetch_assoc();
@@ -60,12 +35,80 @@ if ($group) {
     $user_policy_time_out = $group['time_out'];
 }
 
-// Calculate standard working hours based on user's policy
-$start = strtotime($user_policy_time_in);
-$end = strtotime($user_policy_time_out);
-$standard_hours = ($end - $start) / 3600; // hours
+// standard hours (not used but kept)
+$standard_hours = (strtotime($user_policy_time_out) - strtotime($user_policy_time_in)) / 3600;
 
-// Fetch OT summaries for admin using prepared statement
+$errors = [];
+$success = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_ot_report'])) {
+    $student_id = $user_id;
+    $ot_type = $_POST['ot_type'] ?? '';
+    $ot_date = $_POST['ot_date'] ?? date('Y-m-d');
+    $ot_reason = trim($_POST['ot_reason'] ?? '');
+    // handle uploaded file but DB not storing path (table lacks column)
+    if (isset($_FILES['ot_proof']) && $_FILES['ot_proof']['error'] === UPLOAD_ERR_OK) {
+        $upload_dir = 'uploads/ot_proofs/';
+        if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+        $file_name = uniqid() . '_' . basename($_FILES['ot_proof']['name']);
+        move_uploaded_file($_FILES['ot_proof']['tmp_name'], $upload_dir . $file_name);
+    }
+
+    // Build DateTime objects ensuring same date
+    // Determine actual in/out based on selected OT type (early: user provides time_in; late/normal OT: user provides time_out)
+    try {
+        $policyInDT = new DateTime($ot_date . ' ' . date('g:i A', strtotime($user_policy_time_in)));
+        $policyOutDT = new DateTime($ot_date . ' ' . date('g:i A', strtotime($user_policy_time_out)));
+    } catch (Exception $e) {
+        $errors[] = 'Invalid policy time configuration.';
+    }
+
+    $actualInDT = null;
+    $actualOutDT = null;
+
+    if ($ot_type === 'early') {
+        $time_in_hour = $_POST['time_in_hour'] ?? '';
+        $time_in_ampm = $_POST['time_in_ampm'] ?? 'AM';
+        if ($time_in_hour === '') $errors[] = 'Actual time in is required for early OT.';
+        else {
+            $actualInStr = sprintf('%s %s:00 %s', $ot_date, $time_in_hour, $time_in_ampm);
+            $actualInDT = DateTime::createFromFormat('Y-m-d g:i A', $actualInStr);
+            // actual out is policy out
+            $actualOutDT = clone $policyOutDT;
+        }
+    } elseif ($ot_type === 'late') {
+        $time_out_hour = $_POST['time_out_hour'] ?? '';
+        $time_out_ampm = $_POST['time_out_ampm'] ?? 'PM';
+        if ($time_out_hour === '') $errors[] = 'Actual time out is required for normal OT.';
+        else {
+            $actualOutStr = sprintf('%s %s:00 %s', $ot_date, $time_out_hour, $time_out_ampm);
+            $actualOutDT = DateTime::createFromFormat('Y-m-d g:i A', $actualOutStr);
+            // actual in is policy in
+            $actualInDT = clone $policyInDT;
+        }
+    } else {
+        $errors[] = 'Invalid OT type.';
+    }
+
+    if (empty($errors) && $actualInDT && $actualOutDT) {
+        // If times cross midnight (out < in), add 1 day to out
+        if ($actualOutDT <= $actualInDT) $actualOutDT->modify('+1 day');
+
+        $earlyDiff = max(0, ($policyInDT->getTimestamp() - $actualInDT->getTimestamp()) / 3600);
+        $lateDiff  = max(0, ($actualOutDT->getTimestamp() - $policyOutDT->getTimestamp()) / 3600);
+        $ot_hours = round($earlyDiff + $lateDiff); // keep rounding behavior as before
+        if ($ot_hours <= 0) $errors[] = 'Calculated OT hours is 0. No OT to submit.';
+    }
+
+    if (empty($errors)) {
+        $stmt = $oat->prepare("INSERT INTO ot_reports (student_id, ot_hours, ot_date, ot_reason) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("iiss", $student_id, $ot_hours, $ot_date, $ot_reason);
+        if ($stmt->execute()) $success = 'OT report submitted successfully!';
+        else $errors[] = 'Database error while saving report.';
+    }
+}
+
+// admin summaries (unchanged)
 $ot_summaries = [];
 if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
     $stmt = $oat->prepare("
@@ -83,195 +126,168 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Submit OT Report</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        :root{
-            --accent: #3CB3CC;
-            --accent-deep: #2aa0b3;
-            --glass-bg: rgba(255,255,255,0.55);
-            --glass-border: rgba(60,179,204,0.12);
-            --muted: #6b7280;
-        }
-        body{
-            font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-            margin:0;
-            min-height:100vh;
-            background: linear-gradient(135deg, #f6fbfb 0%, #eef9fa 50%, #f9fcfd 100%);
-            color:#0f172a;
-            -webkit-font-smoothing:antialiased;
-        }
-        .wrap{
-            max-width:600px;
-            margin:48px auto;
-            padding:24px;
-        }
-        .glass{
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            box-shadow: 0 8px 30px rgba(15,23,42,0.06);
-            backdrop-filter: blur(8px) saturate(120%);
-            border-radius:14px;
-            padding:32px 24px;
-            margin-bottom:24px;
-        }
-        .title{
-            font-size:22px;
-            font-weight:800;
-            color:var(--accent-deep);
-            margin-bottom:8px;
-        }
-        .subtitle{
-            font-size:14px;
-            color:var(--muted);
-            margin-bottom:18px;
-        }
-        .form-label{
-            font-weight:600;
-            color:var(--accent-deep);
-        }
-        .btn-accent{
-            background:transparent;
-            border:1px solid var(--accent);
-            color:var(--accent-deep);
-            padding:10px 14px;
-            border-radius:10px;
-            font-weight:700;
-            transition:all .15s ease;
-            width:100%;
-        }
-        .btn-accent:hover{
-            background:var(--accent);
-            color:#fff;
-            transform:translateY(-3px);
-            box-shadow:0 8px 20px rgba(60,179,204,0.12);
-            border-color:transparent;
-        }
-        .time-inputs{
-            display:flex;
-            gap:10px;
-        }
-        .time-inputs input{
-            flex:1;
-        }
-        @media (max-width: 600px){
-            .wrap{ max-width:100%; margin:0; padding:8px;}
-            .glass{ padding:18px 8px;}
-            .time-inputs{ flex-direction:column;}
-        }
-    </style>
+<meta charset="utf-8">
+<title>Submit OT Report</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-    <main class="wrap">
-        <div class="glass">
-            <div class="title">Submit OT Report</div>
-            <div class="subtitle">Send your overtime report. OT starts after your policy time out (<?php echo htmlspecialchars(date('g:i A', strtotime($user_policy_time_out))); ?>).</div>
-            <form method="POST" action="otreport.php" enctype="multipart/form-data" autocomplete="off">
+<main class="container py-4" style="max-width:680px">
+    <div class="card mb-3">
+        <div class="card-body">
+            <h4 class="card-title text-primary">Submit OT Report</h4>
+            <p class="text-muted">OT includes early arrival (before <?php echo htmlspecialchars(date('g:i A', strtotime($user_policy_time_in))); ?>) or normal overtime (after <?php echo htmlspecialchars(date('g:i A', strtotime($user_policy_time_out))); ?>).</p>
+
+            <?php if ($success): ?>
+                <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
+            <?php endif; ?>
+            <?php if ($errors): ?>
+                <div class="alert alert-danger"><ul><?php foreach ($errors as $e) echo '<li>'.htmlspecialchars($e).'</li>'; ?></ul></div>
+            <?php endif; ?>
+
+            <form method="POST" enctype="multipart/form-data" autocomplete="off">
                 <div class="mb-3">
-                    <label class="form-label">Time Inputs (for auto-calculation, 12-hour format)</label>
-                    <div class="time-inputs">
-                        <div style="display: flex; flex-direction: column; gap: 5px;">
-                            <label style="font-size: 12px; color: var(--muted);">OT Start</label>
-                            <div style="display: flex; gap: 5px;">
-                                <input type="number" id="start_hour" class="form-control" value="<?php echo (int)date('g', strtotime($user_policy_time_out)); ?>" min="1" max="12" step="1" readonly>
-                                <span class="form-control" style="width: 80px; background: #e9ecef; text-align: center;"><?php echo date('A', strtotime($user_policy_time_out)); ?></span>
-                            </div>
-                        </div>
-                        <div style="display: flex; flex-direction: column; gap: 5px;">
-                            <label style="font-size: 12px; color: var(--muted);">OT End</label>
-                            <div style="display: flex; gap: 5px;">
-                                <input type="number" id="end_hour" class="form-control" min="1" max="12" step="1">
-                                <select id="end_ampm" class="form-control" style="width: 80px;">
-                                    <option value="PM">PM</option>
-                                    <option value="AM">AM</option>
-                                </select>
-                            </div>
-                        </div>
+                    <label class="form-label">OT Type</label><br>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="ot_type" id="ot_type_early" value="early" checked>
+                        <label class="form-check-label" for="ot_type_early">Early Arrival</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="ot_type" id="ot_type_late" value="late">
+                        <label class="form-check-label" for="ot_type_late">Normal Overtime</label>
                     </div>
                 </div>
-                <div class="mb-3">
-                    <label for="ot_hours" class="form-label">OT Hours (auto-calculated, full hours only)</label>
-                    <input type="number" name="ot_hours" id="ot_hours" class="form-control" required min="0" step="1" readonly>
+
+                <div class="mb-3" id="time_in_section">
+                    <label class="form-label">Actual Time In (hour)</label>
+                    <div class="d-flex gap-2">
+                        <input type="number" id="time_in_hour" name="time_in_hour" class="form-control" min="1" max="12" step="1" placeholder="7">
+                        <select id="time_in_ampm" name="time_in_ampm" class="form-select" style="width:110px">
+                            <option>AM</option><option>PM</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label for="ot_date" class="form-label">OT Date</label>
-                    <input type="date" name="ot_date" id="ot_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
+
+                <div class="mb-3 d-none" id="time_out_section">
+                    <label class="form-label">Actual Time Out (hour)</label>
+                    <div class="d-flex gap-2">
+                        <input type="number" id="time_out_hour" name="time_out_hour" class="form-control" min="1" max="12" step="1" placeholder="6">
+                        <select id="time_out_ampm" name="time_out_ampm" class="form-select" style="width:110px">
+                            <option>PM</option><option>AM</option>
+                        </select>
+                    </div>
                 </div>
+
                 <div class="mb-3">
-                    <label for="ot_reason" class="form-label">Reason for OT</label>
-                    <textarea name="ot_reason" id="ot_reason" class="form-control" rows="3" required></textarea>
+                    <label class="form-label">Calculated OT Hours</label>
+                    <input type="number" id="ot_hours" name="ot_hours" class="form-control" readonly>
                 </div>
+
                 <div class="mb-3">
-                    <label for="ot_proof" class="form-label">Upload Proof (optional)</label>
-                    <input type="file" name="ot_proof" id="ot_proof" class="form-control" accept="image/*,.pdf">
+                    <label class="form-label">OT Date</label>
+                    <input type="date" name="ot_date" class="form-control" value="<?php echo date('Y-m-d'); ?>">
                 </div>
-                <button type="submit" name="submit_ot_report" class="btn-accent mt-2">Submit OT Report</button>
+
+                <div class="mb-3">
+                    <label class="form-label">Reason</label>
+                    <textarea name="ot_reason" class="form-control" rows="3" required></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Proof (optional)</label>
+                    <input type="file" name="ot_proof" class="form-control" accept="image/*,.pdf">
+                </div>
+
+                <button type="submit" name="submit_ot_report" class="btn btn-primary w-100">Submit OT Report</button>
             </form>
         </div>
+    </div>
 
-        <?php if (!empty($ot_summaries)): ?>
-        <div class="glass">
-            <div class="title">OT Summaries (Admin)</div>
-            <div class="subtitle">Total OT hours per student per month.</div>
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Student</th>
-                        <th>Month/Year</th>
-                        <th>Total OT Hours</th>
-                    </tr>
-                </thead>
+    <?php if (!empty($ot_summaries)): ?>
+    <div class="card">
+        <div class="card-body">
+            <h5>OT Summaries (Admin)</h5>
+            <table class="table table-sm">
+                <thead><tr><th>Student</th><th>Month/Year</th><th>Total OT Hours</th></tr></thead>
                 <tbody>
-                    <?php foreach ($ot_summaries as $summary): ?>
+                <?php foreach ($ot_summaries as $s): ?>
                     <tr>
-                        <td><?php echo htmlspecialchars($summary['fname'] . ' ' . $summary['lname']); ?></td>
-                        <td><?php echo htmlspecialchars($summary['month'] . '/' . $summary['year']); ?></td>
-                        <td><?php echo htmlspecialchars($summary['total_ot']); ?></td>
+                        <td><?php echo htmlspecialchars($s['fname'].' '.$s['lname']); ?></td>
+                        <td><?php echo htmlspecialchars($s['month'].'/'.$s['year']); ?></td>
+                        <td><?php echo htmlspecialchars($s['total_ot']); ?></td>
                     </tr>
-                    <?php endforeach; ?>
+                <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
-        <?php endif; ?>
-    </main>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Auto-calculate OT hours: hours worked after user's policy time out
-        const defaultTimeOutHour = <?php echo (int)date('G', strtotime($user_policy_time_out)); ?>; // 24-hour format hour
-        const startAmpm = '<?php echo date('A', strtotime($user_policy_time_out)); ?>';
-        function convertTo24(hour, ampm) {
-            hour = parseInt(hour);
-            if (ampm === 'PM' && hour !== 12) hour += 12;
-            if (ampm === 'AM' && hour === 12) hour = 0;
-            return hour;
-        }
-        function calculateOT() {
-            const startHour = document.getElementById('start_hour').value;
-            const endHour = document.getElementById('end_hour').value;
-            const endAmpm = document.getElementById('end_ampm').value;
-            if (startHour && endHour) {
-                const start24 = convertTo24(startHour, startAmpm);
-                const end24 = convertTo24(endHour, endAmpm);
-                // Validate end time is not below user's policy time out
-                if (end24 < defaultTimeOutHour) {
-                    alert('End time cannot be before your policy time out (<?php echo date('g:i A', strtotime($user_policy_time_out)); ?>).');
-                    document.getElementById('end_hour').value = '';
-                    return;
-                }
-                // OT is hours after policy time out
-                const otStart = start24 > defaultTimeOutHour ? start24 : defaultTimeOutHour;
-                const otHours = Math.max(0, end24 - otStart).toFixed(1);
-                document.getElementById('ot_hours').value = otHours;
-            }
-        }
-        document.getElementById('start_hour').addEventListener('input', calculateOT);
-        document.getElementById('end_hour').addEventListener('input', calculateOT);
-        document.getElementById('end_ampm').addEventListener('change', calculateOT);
-        calculateOT(); // initial calculation
-    </script>
+    </div>
+    <?php endif; ?>
+</main>
+
+<script>
+const policyInHour = <?php echo (int)date('g', strtotime($user_policy_time_in)); ?>;
+const policyInAmpm = '<?php echo date('A', strtotime($user_policy_time_in)); ?>';
+const policyOutHour = <?php echo (int)date('g', strtotime($user_policy_time_out)); ?>;
+const policyOutAmpm = '<?php echo date('A', strtotime($user_policy_time_out)); ?>';
+
+function to24(h, ampm){
+    h = parseInt(h,10);
+    if (isNaN(h)) return NaN;
+    if (ampm==='PM' && h!==12) h+=12;
+    if (ampm==='AM' && h===12) h=0;
+    return h;
+}
+
+function toggleSections(){
+    const type = document.querySelector('input[name="ot_type"]:checked').value;
+    const inSec = document.getElementById('time_in_section');
+    const outSec = document.getElementById('time_out_section');
+    if (type==='early') {
+        inSec.classList.remove('d-none');
+        outSec.classList.add('d-none');
+        // autofill out with policy out
+        document.getElementById('time_out_hour').value = policyOutHour;
+        document.getElementById('time_out_ampm').value = policyOutAmpm;
+    } else {
+        inSec.classList.add('d-none');
+        outSec.classList.remove('d-none');
+        // autofill in with policy in
+        document.getElementById('time_in_hour').value = policyInHour;
+        document.getElementById('time_in_ampm').value = policyInAmpm;
+    }
+    calculateOT();
+}
+
+function calculateOT(){
+    const typeEl = document.querySelector('input[name="ot_type"]:checked');
+    if (!typeEl) return;
+    const type = typeEl.value;
+    let total = 0;
+    if (type==='early') {
+        const ih = document.getElementById('time_in_hour').value;
+        const ia = document.getElementById('time_in_ampm').value;
+        if (!ih) { document.getElementById('ot_hours').value = ''; return; }
+        const actualIn = to24(ih, ia);
+        total = Math.max(0, policyInHour - actualIn);
+    } else {
+        const oh = document.getElementById('time_out_hour').value;
+        const oa = document.getElementById('time_out_ampm').value;
+        if (!oh) { document.getElementById('ot_hours').value = ''; return; }
+        const actualOut = to24(oh, oa);
+        total = Math.max(0, actualOut - policyOutHour);
+    }
+    document.getElementById('ot_hours').value = Math.round(total);
+}
+
+document.querySelectorAll('input[name="ot_type"]').forEach(r => r.addEventListener('change', toggleSections));
+['time_in_hour','time_in_ampm','time_out_hour','time_out_ampm'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', calculateOT);
+});
+document.addEventListener('DOMContentLoaded', ()=> {
+    // initialize fields & UI
+    toggleSections();
+});
+</script>
 </body>
 </html>
