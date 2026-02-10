@@ -1,4 +1,5 @@
 <?php
+
 $activePage = 'otreports'; // or whatever key you use for OT Reports in nav.php
 include '../db.php';
 include 'nav.php';
@@ -8,6 +9,9 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'supe
     header("Location: ../login.php");
     exit;
 }
+
+$role = $_SESSION['role'];
+$admin_id = (int)$_SESSION['user_id'];
 
 // Function to calculate actual OT hours
 function calculateActualOtHours($oat, $student_id, $ot_date) {
@@ -110,12 +114,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_id'])) {
 }
 
 // Fetch OT reports
-$reports = $oat->query("
-    SELECT ot.*, u.fname, u.lname 
-    FROM ot_reports ot
-    LEFT JOIN users u ON ot.student_id = u.id
-    ORDER BY ot.submitted_at DESC
-"); 
+if ($role === 'super_admin' || $role === 'adviser') {
+    // Show all for super_admin/adviser
+    $reports = $oat->query("
+        SELECT ot.*, u.fname, u.lname 
+        FROM ot_reports ot
+        LEFT JOIN users u ON ot.student_id = u.id
+        ORDER BY ot.submitted_at DESC
+    ");
+} else {
+    // Only show OJTs managed by this admin
+    $reports = $oat->query("
+        SELECT ot.*, u.fname, u.lname 
+        FROM ot_reports ot
+        LEFT JOIN users u ON ot.student_id = u.id
+        WHERE u.adviser_id = $admin_id
+        ORDER BY ot.submitted_at DESC
+    ");
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

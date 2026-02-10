@@ -642,19 +642,36 @@ if ($_SESSION['role'] === 'super_admin') {
                         <h3><i class="bi bi-person-check me-2"></i>Active OJTs Today</h3>
                         <span class="badge bg-success"><?= $active_today ?> Active</span>
                     </div>
-
                     <?php
-                    $active_ojts = $oat->query("
-                        SELECT u.id, u.username, u.fname, u.mname, u.lname, u.email, u.profile_img, 
+                    // Fetch active OJTs for today
+                    if ($_SESSION['role'] === 'super_admin') {
+                        $active_ojts = $oat->query("
+                            SELECT u.id, u.username, u.fname, u.mname, u.lname, u.email, u.profile_img, 
                                r.time_in, r.time_out
-                        FROM users u
-                        JOIN ojt_records r ON u.id = r.user_id
-                        WHERE u.role = 'ojt' AND r.date = CURDATE() 
-                        AND r.time_in IS NOT NULL AND r.time_in != ''
-                        ORDER BY r.time_in ASC
-                    ");
+                            FROM users u
+                            JOIN ojt_records r ON u.id = r.user_id
+                            WHERE u.role = 'ojt' AND r.date = CURDATE() 
+                            AND r.time_in IS NOT NULL AND r.time_in != ''
+                            ORDER BY r.time_in ASC
+                        ");
+                        $active_ojt_title = "Active OJTs Today";
+                        $active_ojt_empty = "No OJT has clocked in today.";
+                    } else {
+                        $active_ojts = $oat->query("
+                            SELECT u.id, u.username, u.fname, u.mname, u.lname, u.email, u.profile_img, 
+                               r.time_in, r.time_out
+                            FROM users u
+                            JOIN ojt_records r ON u.id = r.user_id
+                            WHERE u.role = 'ojt'
+                              AND u.adviser_id = $admin_id
+                              AND r.date = CURDATE()
+                              AND r.time_in IS NOT NULL AND r.time_in != ''
+                            ORDER BY r.time_in ASC
+                        ");
+                        $active_ojt_title = "My Active OJTs Today";
+                        $active_ojt_empty = "No OJT active under you today.";
+                    }
                     ?>
-
                     <?php if ($active_ojts && $active_ojts->num_rows > 0): ?>
                         <div class="table-responsive">
                             <table class="ojt-table">
@@ -716,8 +733,7 @@ if ($_SESSION['role'] === 'super_admin') {
                     <?php else: ?>
                         <div class="empty-state">
                             <i class="bi bi-person-x"></i>
-                            <h5>No Active OJTs</h5>
-                            <p>No OJT has clocked in today yet.</p>
+                            <h5><?= $active_ojt_empty ?></h5>
                         </div>
                     <?php endif; ?>
                 </div>

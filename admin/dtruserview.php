@@ -1,5 +1,7 @@
 <?php
 
+include '../db.php';
+include 'nav.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 // Allow only admin and super_admin
@@ -8,11 +10,22 @@ if (!isset($_SESSION['user_id']) || !in_array(($_SESSION['role'] ?? ''), ['super
     exit;
 }
 
-include '../db.php';
-include 'nav.php';
 
-// Fetch all users from the database
-$users = $oat->query("SELECT id, fname, lname, username, email, role, profile_img FROM users ORDER BY id ASC");
+
+$role = $_SESSION['role'];
+$admin_id = (int)$_SESSION['user_id'];
+
+// Only show OJTs managed by this admin if admin, or all if super_admin
+if ($role === 'super_admin') {
+    $users = $oat->query("SELECT id, fname, lname, username, email, role, profile_img FROM users WHERE role = 'ojt' ORDER BY id ASC");
+} else {
+    $users = $oat->query("
+        SELECT id, fname, lname, username, email, role, profile_img
+        FROM users
+        WHERE role = 'ojt' AND adviser_id = $admin_id
+        ORDER BY id ASC
+    ");
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -34,7 +47,6 @@ $users = $oat->query("SELECT id, fname, lname, username, email, role, profile_im
         }
         body {
             font-family: 'Inter', sans-serif;
-            /* Lighter glassy, light blue background */
             background: linear-gradient(135deg, #f6fcfe 0%, #e3f6fa 60%, #d2f1f7 100%);
             min-height: 100vh;
         }
@@ -42,7 +54,7 @@ $users = $oat->query("SELECT id, fname, lname, username, email, role, profile_im
             max-width: 1200px;
             margin: 40px auto 0 auto;
             padding: 2rem;
-            background: rgba(60, 178, 204, 0.09); /* lighter glassy effect */
+            background: rgba(60, 178, 204, 0.09);
             border-radius: 18px;
             box-shadow: 0 8px 30px rgba(60,178,204,0.08);
             backdrop-filter: blur(6px) saturate(120%);
