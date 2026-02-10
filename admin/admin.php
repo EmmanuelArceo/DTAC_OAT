@@ -242,6 +242,12 @@ $recent_activities = $oat->query("
             display: flex;
             flex-direction: row;
             gap: 2rem;
+            /* Fix: make columns take full width */
+            width: 100%;
+        }
+        .content-grid > div {
+            flex: 1 1 0;
+            min-width: 0;
         }
 
         /* Responsive: Stack columns on mobile */
