@@ -14,7 +14,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin')
 $ojt_count = $oat->query("SELECT COUNT(*) as c FROM users WHERE role='ojt'")->fetch_assoc()['c'] ?? 0;
 $admin_count = $oat->query("SELECT COUNT(*) as c FROM users WHERE role='admin'")->fetch_assoc()['c'] ?? 0;
 $active_today = $oat->query("SELECT COUNT(DISTINCT user_id) as c FROM ojt_records WHERE date = CURDATE()")->fetch_assoc()['c'] ?? 0;
-$pending = $oat->query("SELECT COUNT(*) as c FROM ojt_records WHERE time_out IS NULL AND date = CURDATE()")->fetch_assoc()['c'] ?? 0;
+$pending = $oat->query("SELECT COUNT(*) as c FROM ojt_records WHERE date = CURDATE() AND (time_out IS NULL OR time_out = '' OR time_out = '00:00:00') AND time_in IS NOT NULL AND time_in != ''")->fetch_assoc()['c'] ?? 0;
 
 // Get weekly attendance trend
 $weekly_data = $oat->query("
