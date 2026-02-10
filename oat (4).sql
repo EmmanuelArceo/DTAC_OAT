@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 05, 2026 at 02:54 AM
+-- Generation Time: Feb 10, 2026 at 08:48 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -36,15 +36,20 @@ CREATE TABLE `ojt_records` (
   `ot_hours` decimal(4,2) DEFAULT 0.00,
   `remarks` varchar(255) DEFAULT NULL,
   `time_in_policy` time DEFAULT NULL,
-  `time_out_policy` time DEFAULT NULL
+  `time_out_policy` time DEFAULT NULL,
+  `lunch_start` time DEFAULT NULL,
+  `lunch_end` time DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `ojt_records`
 --
 
-INSERT INTO `ojt_records` (`id`, `user_id`, `date`, `time_in`, `time_out`, `ot_hours`, `remarks`, `time_in_policy`, `time_out_policy`) VALUES
-(21, 4, '2026-02-04', '15:13:44', '15:14:14', 0.00, 'late', '02:00:00', '17:00:00');
+INSERT INTO `ojt_records` (`id`, `user_id`, `date`, `time_in`, `time_out`, `ot_hours`, `remarks`, `time_in_policy`, `time_out_policy`, `lunch_start`, `lunch_end`) VALUES
+(28, 4, '2026-02-07', '06:26:16', '20:00:00', 0.00, 'late', '07:00:00', '17:00:00', '12:00:00', '14:00:00'),
+(29, 4, '2026-02-08', '08:00:00', '00:00:00', 0.00, 'late', '07:00:00', '17:00:00', '11:00:00', '12:00:00'),
+(33, 4, '2026-02-09', '13:14:36', '00:00:00', 0.00, 'late', '07:00:00', '17:00:00', '11:00:00', '12:00:00'),
+(35, 4, '2026-02-10', '12:18:00', '00:00:00', 0.00, 'late', '07:00:00', '17:00:00', '11:00:00', '12:00:00');
 
 -- --------------------------------------------------------
 
@@ -64,6 +69,42 @@ CREATE TABLE `ojt_requirements` (
 INSERT INTO `ojt_requirements` (`user_id`, `required_hours`) VALUES
 (4, 486.00),
 (5, 111.00);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `ot_reports`
+--
+
+CREATE TABLE `ot_reports` (
+  `id` int(11) NOT NULL,
+  `student_id` int(11) NOT NULL,
+  `ot_hours` int(11) NOT NULL,
+  `ot_date` date NOT NULL,
+  `ot_reason` text NOT NULL,
+  `recipient` varchar(20) NOT NULL,
+  `submitted_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `approved` tinyint(1) DEFAULT 0,
+  `decline_reason` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `ot_reports`
+--
+
+INSERT INTO `ot_reports` (`id`, `student_id`, `ot_hours`, `ot_date`, `ot_reason`, `recipient`, `submitted_at`, `approved`, `decline_reason`) VALUES
+(1, 4, 2, '2026-02-07', 'asdasdasd', '', '2026-02-05 02:20:40', 0, NULL),
+(2, 4, 1, '2026-02-05', 'asdasdasdasdasdasdasxzvxzcv', '', '2026-02-05 04:33:44', 1, NULL),
+(3, 4, 1, '2026-02-05', 'Ueueujeudur', '', '2026-02-05 04:39:32', 0, NULL),
+(4, 4, 2, '2026-02-07', 'sadasdadsdsshoulldasd', '', '2026-02-07 08:27:24', 1, NULL),
+(5, 4, 491808, '2026-02-08', 'sdfcbsdcbasdasdAcwcaasd', '', '2026-02-08 07:05:14', 0, NULL),
+(6, 4, 0, '2026-02-08', 'sdfcbsdcbasdasdAcwcaasd', '', '2026-02-08 07:06:00', 0, NULL),
+(7, 4, 0, '2026-02-08', 'sdfcbsdcbasdasdAcwcaasd', '', '2026-02-08 07:07:54', 0, NULL),
+(8, 4, 0, '2026-02-08', 'sdfcbsdcbasdasdAcwcaasd', '', '2026-02-08 07:19:22', 0, NULL),
+(9, 4, 0, '2026-02-08', 'sdfcbsdcbasdasdAcwcaasd', '', '2026-02-08 07:22:13', 0, NULL),
+(10, 4, 0, '2026-02-08', 'sdfcbsdcbasdasdAcwcaasd', '', '2026-02-08 07:24:00', 0, NULL),
+(11, 4, 0, '2026-02-08', 'sdfcbsdcbasdasdAcwcaasd', '', '2026-02-08 07:24:54', 0, NULL),
+(12, 4, 0, '2026-02-08', 'sdfcbsdcbasdasdAcwcaasd', '', '2026-02-08 07:27:30', 0, 'no');
 
 -- --------------------------------------------------------
 
@@ -127,8 +168,8 @@ CREATE TABLE `qr_codes` (
 --
 
 INSERT INTO `qr_codes` (`id`, `code`, `expires_at`, `created_at`, `type`, `session_id`, `date`) VALUES
-(9842, '25f5afad0393b25c0ef5f3353ff3f473ecc507184d39bd7c135806976da3f6e5', '2026-02-05 09:36:50', '2026-02-05 09:36:49', 'time_in', '6983f431b126f7.53269357', '2026-02-05'),
-(9843, '69a5e692a034c7b7f0fb8a78d35f19ad2b372802caf827a7b73ad3f37281827c', '2026-02-05 09:36:50', '2026-02-05 09:36:49', 'time_out', '6983f431b317b6.32804297', '2026-02-05');
+(17390, '7229dc033df76edac31216df97cd98cb8ad8ec844198b5fdfaa94cd8d39d0cb8', '2026-02-10 15:48:58', '2026-02-10 15:48:56', 'time_in', '698ae2e80e3421.86871781', '2026-02-10'),
+(17391, '7e85953c9f15d42e5c9b39dac52801b0f6aefa5bccb48b9e46978a958369fa79', '2026-02-10 15:48:58', '2026-02-10 15:48:56', 'time_out', '698ae2e80e3417.07828487', '2026-02-10');
 
 -- --------------------------------------------------------
 
@@ -139,15 +180,41 @@ INSERT INTO `qr_codes` (`id`, `code`, `expires_at`, `created_at`, `type`, `sessi
 CREATE TABLE `site_settings` (
   `id` int(11) NOT NULL,
   `default_time_in` time NOT NULL DEFAULT '08:00:00',
-  `default_time_out` time NOT NULL DEFAULT '17:00:00'
+  `default_time_out` time NOT NULL DEFAULT '17:00:00',
+  `lunch_start` time DEFAULT '12:00:00',
+  `lunch_end` time DEFAULT '13:00:00'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `site_settings`
 --
 
-INSERT INTO `site_settings` (`id`, `default_time_in`, `default_time_out`) VALUES
-(1, '02:00:00', '17:00:00');
+INSERT INTO `site_settings` (`id`, `default_time_in`, `default_time_out`, `lunch_start`, `lunch_end`) VALUES
+(1, '07:00:00', '17:00:00', '12:00:00', '15:00:00');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `time_groups`
+--
+
+CREATE TABLE `time_groups` (
+  `id` int(11) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `time_in` time NOT NULL,
+  `time_out` time NOT NULL,
+  `lunch_start` time DEFAULT '12:00:00',
+  `lunch_end` time DEFAULT '13:00:00'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `time_groups`
+--
+
+INSERT INTO `time_groups` (`id`, `name`, `time_in`, `time_out`, `lunch_start`, `lunch_end`) VALUES
+(4, 'Default', '08:00:00', '17:00:00', '12:00:00', '13:00:00'),
+(5, 'EAC', '07:00:00', '22:00:00', '11:00:00', '12:00:00'),
+(6, 'NCST', '07:00:00', '18:00:00', '12:00:00', '13:00:00');
 
 -- --------------------------------------------------------
 
@@ -170,16 +237,39 @@ CREATE TABLE `users` (
   `school_org` varchar(100) DEFAULT NULL,
   `full_name` varchar(100) DEFAULT NULL,
   `bio` varchar(255) DEFAULT NULL,
-  `profile_img` varchar(255) DEFAULT NULL
+  `profile_img` varchar(255) DEFAULT NULL,
+  `adviser_id` int(11) DEFAULT NULL,
+  `status` enum('active','restricted') NOT NULL DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`id`, `username`, `email`, `password`, `role`, `fname`, `mname`, `lname`, `position`, `age`, `mobile`, `school_org`, `full_name`, `bio`, `profile_img`) VALUES
-(4, 'eman', 'emmanuellouisearceo@gmail.com', '$2y$10$QBCfhgnlaGnlVqL2q4yz4O4l3VfTLS8ouHWFfLAOGulMPpc65v6cK', 'ojt', 'emmanuel', NULL, 'arceo', NULL, 22, '09923123123', NULL, NULL, '', 'uploads/profile_4_1770169547.jpg'),
-(5, 'admin', 'Ikki015137@gmail.com', '$2y$10$IlcjELq6OFydJUIh11q6A.eVxDt8y389Bsuajbwbt3pfauFP7aGce', 'super_admin', 'admin', NULL, 'admin', NULL, 22, '09923123111', NULL, NULL, NULL, NULL);
+INSERT INTO `users` (`id`, `username`, `email`, `password`, `role`, `fname`, `mname`, `lname`, `position`, `age`, `mobile`, `school_org`, `full_name`, `bio`, `profile_img`, `adviser_id`, `status`) VALUES
+(4, 'eman', 'emmanuellouisearceo@gmail.com', '$2y$10$QBCfhgnlaGnlVqL2q4yz4O4l3VfTLS8ouHWFfLAOGulMPpc65v6cK', 'ojt', 'Emmanuel', 'V', 'Arceo', 'IT Business Analyst', 22, '09923123123', NULL, NULL, 'Test Bio', 'uploads/profile_4_1770169547.jpg', 6, 'active'),
+(5, 'admin', 'Ikki015137@gmail.com', '$2y$10$IlcjELq6OFydJUIh11q6A.eVxDt8y389Bsuajbwbt3pfauFP7aGce', 'super_admin', 'Test', NULL, 'Seuperadmin', NULL, 22, '09923123111', NULL, NULL, NULL, 'uploads/profile_images/698ad932330ac_626009105_2308175632997973_6981034424676502484_n.jpg', NULL, 'active'),
+(6, 'SSV', 'markrobin335@gmail.com', '$2y$10$8sE3LPS1Huwvp6q/K.PwXOIXVYLQPLdR0SlouIcprezwsB2VTdGKS', 'admin', 'super', 'S', 'visor', NULL, NULL, NULL, NULL, NULL, NULL, 'uploads/profile_images/698ad98f8bac0_sssssssssssssssssssssssssssssssssssssssssssssss.PNG', NULL, 'active'),
+(7, 'admin2', 'asdasdasd@gmail.com', '$2y$10$4XtJ7x/tkba9hbP/SP8U/u5.DH.lXJo4KreZY.sEGVaxYzgYiHEoq', 'admin', '2nd', 'A', 'admin', NULL, NULL, NULL, NULL, NULL, NULL, 'uploads/profile_images/698adceb17858_0d6473eb-488a-4ea1-b240-7351793b8cb2.jpg', NULL, 'active');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `user_time_groups`
+--
+
+CREATE TABLE `user_time_groups` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `group_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `user_time_groups`
+--
+
+INSERT INTO `user_time_groups` (`id`, `user_id`, `group_id`) VALUES
+(14, 4, 5);
 
 --
 -- Indexes for dumped tables
@@ -197,6 +287,13 @@ ALTER TABLE `ojt_records`
 --
 ALTER TABLE `ojt_requirements`
   ADD PRIMARY KEY (`user_id`);
+
+--
+-- Indexes for table `ot_reports`
+--
+ALTER TABLE `ot_reports`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `student_id` (`student_id`);
 
 --
 -- Indexes for table `password_resets`
@@ -218,12 +315,26 @@ ALTER TABLE `site_settings`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `time_groups`
+--
+ALTER TABLE `time_groups`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `username` (`username`),
-  ADD UNIQUE KEY `email` (`email`);
+  ADD UNIQUE KEY `email` (`email`),
+  ADD KEY `fk_adviser_id` (`adviser_id`);
+
+--
+-- Indexes for table `user_time_groups`
+--
+ALTER TABLE `user_time_groups`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `user_id` (`user_id`,`group_id`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -233,7 +344,13 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `ojt_records`
 --
 ALTER TABLE `ojt_records`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
+
+--
+-- AUTO_INCREMENT for table `ot_reports`
+--
+ALTER TABLE `ot_reports`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `password_resets`
@@ -245,7 +362,7 @@ ALTER TABLE `password_resets`
 -- AUTO_INCREMENT for table `qr_codes`
 --
 ALTER TABLE `qr_codes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9844;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17392;
 
 --
 -- AUTO_INCREMENT for table `site_settings`
@@ -254,10 +371,22 @@ ALTER TABLE `site_settings`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
+-- AUTO_INCREMENT for table `time_groups`
+--
+ALTER TABLE `time_groups`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT for table `user_time_groups`
+--
+ALTER TABLE `user_time_groups`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- Constraints for dumped tables
@@ -276,10 +405,22 @@ ALTER TABLE `ojt_requirements`
   ADD CONSTRAINT `ojt_requirements_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `ot_reports`
+--
+ALTER TABLE `ot_reports`
+  ADD CONSTRAINT `ot_reports_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `password_resets`
 --
 ALTER TABLE `password_resets`
   ADD CONSTRAINT `password_resets_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `users`
+--
+ALTER TABLE `users`
+  ADD CONSTRAINT `fk_adviser_id` FOREIGN KEY (`adviser_id`) REFERENCES `users` (`id`);
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
