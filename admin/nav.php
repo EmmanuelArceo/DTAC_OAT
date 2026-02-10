@@ -1,9 +1,10 @@
 <?php
-
+if (!function_exists('active')) {
+    function active($page, $current) { return $page === $current ? 'active' : ''; }
+}
 if (session_status() === PHP_SESSION_NONE) session_start();
 $avatar = $_SESSION['avatar'] ?? 'uploads/noimg.png';
 $current = basename($_SERVER['PHP_SELF'] ?? '');
-function active($page, $current) { return $page === $current ? 'active' : ''; }
 ?>
 <!-- restore collapsed state early to avoid flicker -->
 <script>
@@ -36,6 +37,7 @@ function active($page, $current) { return $page === $current ? 'active' : ''; }
 body {
   padding-left: var(--sb-w);
   transition: padding-left .18s ease;
+     font-family: 'Inter', sans-serif;
     
 }
 #pageContent { margin-left: 0; }

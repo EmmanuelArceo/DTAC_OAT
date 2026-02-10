@@ -1,5 +1,5 @@
 <?php
-
+$activePage = 'otreports'; // or whatever key you use for OT Reports in nav.php
 include '../db.php';
 include 'nav.php';
 
