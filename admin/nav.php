@@ -37,8 +37,7 @@ $current = basename($_SERVER['PHP_SELF'] ?? '');
 body {
   padding-left: var(--sb-w);
   transition: padding-left .18s ease;
-     font-family: 'Inter', sans-serif;
-    
+  font-family: 'Inter', sans-serif;
 }
 #pageContent { margin-left: 0; }
 
@@ -50,40 +49,44 @@ html.sb-collapsed body {
 /* Mobile: remove left padding and use offcanvas-like show/hide for sidebar */
 @media (max-width: 991.98px) {
   body { padding-left: 0 !important; }
-  #sb-sidebar { transform: translateX(-110%); }
-  #sb-sidebar.show { transform: translateX(0); }
+  #sb-sidebar { display: none !important; }
+  #top-navbar { display: flex !important; }
 }
-</style>
 
-<style>
-/* minimal CSS only for collapsed behavior + small niceties */
+/* Hide top nav on desktop */
+#top-navbar { display: none; }
+
+@media (max-width: 991.98px) {
+  #top-navbar { display: flex !important; }
+}
+
+/* Sidebar styles remain unchanged */
 #sb-sidebar{ position:fixed; top:0; left:0; height:100vh; width:var(--sb-w); padding:1rem; background:#fff; border-right:1px solid rgba(0,0,0,.04); box-shadow:0 8px 24px rgba(10,10,10,.04); transition:width .18s ease; z-index:1040; overflow:hidden; }
 html.sb-collapsed #sb-sidebar{ width:var(--sb-cw); }
 #pageContent{ margin-left:calc(var(--sb-w) + 16px); transition:margin-left .18s ease; padding:1.25rem; }
 html.sb-collapsed #pageContent{ margin-left:calc(var(--sb-cw) + 16px); }
-
-/* hide transitions during early restore */
 html.no-transitions #sb-sidebar, html.no-transitions #pageContent{ transition:none !important; }
-
-/* icon badge */
 .sb-icon { width:36px; height:36px; display:grid; place-items:center; border-radius:.6rem; background:#f1f5f9; color:#0f172a; flex:0 0 36px; }
-
-/* collapsed: hide labels smoothly */
 .nav-label{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:opacity .12s ease, max-width .18s ease; max-width:160px; opacity:1; }
 html.sb-collapsed .nav-label{ max-width:0; opacity:0; }
-
-/* enhance active and hover */
 .nav-link.active{ background:linear-gradient(90deg, rgba(6,182,212,.08), rgba(16,185,129,.04)); box-shadow: inset 3px 0 0 #06b6d4; color:#042022; font-weight:600; border-radius:.5rem; }
 .nav-link:hover{ transform: translateX(4px); transition: transform .12s ease; }
-
-/* nav container scroll */
 .sb-nav{ overflow-y:auto; max-height:calc(100vh - 220px); scrollbar-width:none; -ms-overflow-style:none; }
 .sb-nav::-webkit-scrollbar{ display:none; }
-
-/* actions keep icon-visible on collapse */
 .sb-actions .label{ transition:opacity .12s ease, max-width .18s ease; }
 html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
 </style>
+
+<!-- Top Navbar for Mobile -->
+<nav id="top-navbar" class="navbar navbar-expand-lg navbar-light bg-white shadow-sm px-2 py-2" style="z-index:1050;">
+  <div class="container-fluid">
+    <a class="navbar-brand d-flex align-items-center" href="adminprofileedit.php">
+      <img src="../<?php echo htmlspecialchars($avatar); ?>" alt="avatar" class="rounded me-2" style="width:36px;height:36px;object-fit:cover">
+      <span class="fw-semibold"><?php echo htmlspecialchars(($_SESSION['fname'] ?? '') . ' ' . ($_SESSION['lname'] ?? '')); ?></span>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar" aria-controls="mobileSidebar" aria-label="Open menu"><i class="bi bi-list"></i></button>
+  </div>
+</nav>
 
 <nav id="sb-sidebar" class="d-none d-lg-flex flex-column" aria-label="Sidebar">
   <div class="d-flex align-items-center mb-2">
