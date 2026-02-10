@@ -444,6 +444,8 @@ $recent_activities = $oat->query("
             list-style: none;
             padding: 0;
             margin: 0;
+            max-height: 340px; /* Show max 4, then scroll */
+            overflow-y: auto;
         }
 
         .activity-item {
@@ -454,6 +456,7 @@ $recent_activities = $oat->query("
             border-radius: 8px;
             margin-bottom: 0.75rem;
             transition: background 0.2s ease;
+            min-height: 70px;
         }
 
         .activity-item:hover {
@@ -705,7 +708,7 @@ $recent_activities = $oat->query("
                             <?php endwhile; ?>
                         </ul>
                         <div class="text-center mt-3">
-                            <a href="reports.php" class="btn btn-sm btn-outline-primary">
+                            <a href="activity.php" class="btn btn-sm btn-outline-primary">
                                 View All Activities <i class="bi bi-arrow-right ms-1"></i>
                             </a>
                         </div>
