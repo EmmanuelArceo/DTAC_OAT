@@ -75,7 +75,6 @@ $recent_activities = $oat->query("
 
         body {
             font-family: 'Inter', sans-serif;
-            /* Lighter glassy, light blue background */
             background: linear-gradient(135deg, #f6fcfe 0%, #e3f6fa 60%, #d2f1f7 100%);
             min-height: 100vh;
             color: var(--dark);
@@ -86,13 +85,12 @@ $recent_activities = $oat->query("
             max-width: 1400px;
             margin: 0 auto;
             padding: 1.5rem;
-            background: rgba(60, 178, 204, 0.09); /* lighter glassy effect */
+            background: rgba(60, 178, 204, 0.09);
             border-radius: 22px;
             box-shadow: 0 8px 32px 0 rgba(60,178,204,0.08);
             backdrop-filter: blur(6px) saturate(120%);
         }
 
-        /* Header Section */
         .dashboard-header {
             background: white;
             border-radius: 16px;
@@ -126,7 +124,6 @@ $recent_activities = $oat->query("
             margin-top: 1rem;
         }
 
-        /* Stats Cards */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -241,16 +238,60 @@ $recent_activities = $oat->query("
             color: var(--danger);
         }
 
-        /* Main Grid Layout */
         .content-grid {
-            display: grid;
-            grid-template-columns: 1fr;
+            display: flex;
+            flex-direction: row;
             gap: 2rem;
         }
 
-        @media (min-width: 992px) {
+        /* Responsive: Stack columns on mobile */
+        @media (max-width: 991.98px) {
+            .dashboard-container {
+                padding: 0.5rem;
+            }
+            .dashboard-header {
+                padding: 1rem;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
             .content-grid {
-                grid-template-columns: 2fr 1fr;
+                flex-direction: column;
+                gap: 1.2rem;
+            }
+        }
+
+        @media (max-width: 767.98px) {
+            .dashboard-header h1 {
+                font-size: 1.2rem;
+            }
+            .stat-value {
+                font-size: 1.3rem;
+            }
+            .card-custom {
+                padding: 1rem;
+            }
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+            .ojt-table {
+                font-size: 0.85rem;
+            }
+            .user-avatar {
+                width: 32px;
+                height: 32px;
+            }
+            .activity-icon {
+                width: 28px;
+                height: 28px;
+                font-size: 1.1rem;
+            }
+            .card-header-custom h3 {
+                font-size: 1rem;
+            }
+            .dashboard-header {
+                padding: 0.7rem;
             }
         }
 
@@ -266,7 +307,7 @@ $recent_activities = $oat->query("
 
         .card-header-custom {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 1.5rem;
             padding-bottom: 1rem;
@@ -284,7 +325,6 @@ $recent_activities = $oat->query("
             font-weight: 600;
         }
 
-        /* Quick Actions */
         .quick-actions {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -306,7 +346,6 @@ $recent_activities = $oat->query("
             gap: 0.75rem;
         }
 
-        /* Active OJTs Table */
         .ojt-table {
             width: 100%;
             margin-top: 1rem;
@@ -395,7 +434,6 @@ $recent_activities = $oat->query("
             50% { opacity: 0.5; }
         }
 
-        /* Recent Activity */
         .activity-list {
             list-style: none;
             padding: 0;
@@ -416,48 +454,10 @@ $recent_activities = $oat->query("
             background: var(--light);
         }
 
-        /* Chart Container */
         .chart-container {
             position: relative;
             height: 300px;
             margin-top: 1rem;
-        }
-
-        /* Responsive */
-        @media (max-width: 767.98px) {
-            .dashboard-container {
-                padding: 1rem;
-            }
-
-            .dashboard-header h1 {
-                font-size: 1.5rem;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-                gap: 1rem;
-            }
-
-            .stat-value {
-                font-size: 2rem;
-            }
-
-            .card-custom {
-                padding: 1.25rem;
-            }
-
-            .quick-actions {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .ojt-table {
-                font-size: 0.875rem;
-            }
-
-            .user-avatar {
-                width: 40px;
-                height: 40px;
-            }
         }
 
         /* Empty State */
