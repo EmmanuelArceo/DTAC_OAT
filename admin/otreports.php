@@ -1,8 +1,5 @@
 <?php
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
 include '../db.php';
 include 'nav.php';
 
@@ -12,19 +9,45 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'supe
     exit;
 }
 
+// Function to calculate actual OT hours
+function calculateActualOtHours($oat, $student_id, $ot_date) {
+    $stmt = $oat->prepare("SELECT default_time_out FROM site_settings LIMIT 1");
+    $stmt->execute();
+    $settings = $stmt->get_result()->fetch_assoc();
+    $default_time_out = $settings['default_time_out'] ?? '17:00:00';
+    $user_policy_time_out = $default_time_out;
+    $stmt = $oat->prepare("SELECT tg.time_out FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
+    $stmt->bind_param("i", $student_id);
+    $stmt->execute();
+    $group = $stmt->get_result()->fetch_assoc();
+    if ($group) {
+        $user_policy_time_out = $group['time_out'];
+    }
+    $stmt = $oat->prepare("SELECT time_out FROM ojt_records WHERE user_id = ? AND date = ?");
+    $stmt->bind_param("is", $student_id, $ot_date);
+    $stmt->execute();
+    $record = $stmt->get_result()->fetch_assoc();
+    $actual_ot_hours = 0;
+    $actual_time_out_display = 'N/A';
+    if ($record && $record['time_out'] && $record['time_out'] !== '00:00:00') {
+        $actual_time_out = strtotime($record['time_out']);
+        $policy_time_out_ts = strtotime($user_policy_time_out);
+        $actual_ot_hours = max(0, ($actual_time_out - $policy_time_out_ts) / 3600);
+        $actual_time_out_display = date('g:i A', $actual_time_out);
+    }
+    return [$actual_ot_hours, $actual_time_out_display];
+}
+
 // Handle OT approval
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_id'])) {
     $approve_id = intval($_POST['approve_id']);
     $approval_type = $_POST['approval_type'] ?? 'deny';
-    
-    // Fetch OT report details using prepared statement
     $stmt = $oat->prepare("SELECT * FROM ot_reports WHERE id = ?");
     $stmt->bind_param("i", $approve_id);
     $stmt->execute();
     $report = $stmt->get_result()->fetch_assoc();
-    
     if ($report) {
-        // Fetch user's policy time out (check time group or default)
+        list($actual_ot_hours, $actual_time_out_display) = calculateActualOtHours($oat, $report['student_id'], $report['ot_date']);
         $stmt = $oat->prepare("SELECT default_time_out FROM site_settings LIMIT 1");
         $stmt->execute();
         $settings = $stmt->get_result()->fetch_assoc();
@@ -37,28 +60,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_id'])) {
         if ($group) {
             $user_policy_time_out = $group['time_out'];
         }
-        
-        // Fetch actual time out from ojt_records
         $stmt = $oat->prepare("SELECT time_out FROM ojt_records WHERE user_id = ? AND date = ?");
         $stmt->bind_param("is", $report['student_id'], $report['ot_date']);
         $stmt->execute();
         $record = $stmt->get_result()->fetch_assoc();
-        
         $approved_hours = 0;
         if ($record && $record['time_out'] && $record['time_out'] !== '00:00:00') {
             $actual_time_out = strtotime($record['time_out']);
             $policy_time_out_ts = strtotime($user_policy_time_out);
             $actual_ot_hours = max(0, ($actual_time_out - $policy_time_out_ts) / 3600);
-            
             if ($actual_ot_hours >= $report['ot_hours']) {
-                // Completed full claimed hours
                 $approved_hours = $report['ot_hours'];
                 $stmt = $oat->prepare("UPDATE ot_reports SET approved = 1 WHERE id = ?");
                 $stmt->bind_param("i", $approve_id);
                 $stmt->execute();
                 $_SESSION['message'] = "OT report approved successfully for " . $approved_hours . " hours.";
             } else {
-                // Not completed
                 if ($approval_type === 'full') {
                     $approved_hours = $report['ot_hours'];
                     $stmt = $oat->prepare("UPDATE ot_reports SET approved = 1 WHERE id = ?");
@@ -72,31 +89,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_id'])) {
                     $stmt->execute();
                     $_SESSION['message'] = "OT report approved for actual hours (" . $approved_hours . " hours).";
                 } else {
-                    // Deny: Store denial in database
-                    $stmt = $oat->prepare("UPDATE ot_reports SET approved = 0, denied_at = NOW() WHERE id = ?");
+                    $stmt = $oat->prepare("UPDATE ot_reports SET approved = 0 WHERE id = ?");
                     $stmt->bind_param("i", $approve_id);
                     $stmt->execute();
                     $_SESSION['message'] = "OT report denied.";
                 }
             }
         } else {
-            // Deny if no valid record
-            $stmt = $oat->prepare("UPDATE ot_reports SET approved = 0, denied_at = NOW() WHERE id = ?");
+            $stmt = $oat->prepare("UPDATE ot_reports SET approved = 0 WHERE id = ?");
             $stmt->bind_param("i", $approve_id);
             $stmt->execute();
             $_SESSION['message'] = "OT report denied. No valid time out record found for the OT date.";
         }
-        
-        // Store approved OT hours in ojt_records if approved
         if ($approved_hours > 0) {
             $stmt = $oat->prepare("UPDATE ojt_records SET ot_hours = ? WHERE user_id = ? AND date = ?");
             $stmt->bind_param("dis", $approved_hours, $report['student_id'], $report['ot_date']);
             $stmt->execute();
         }
     }
-    
-    header("Location: otreports.php");
-    exit;
 }
 
 // Fetch OT reports
@@ -105,7 +115,7 @@ $reports = $oat->query("
     FROM ot_reports ot
     LEFT JOIN users u ON ot.student_id = u.id
     ORDER BY ot.submitted_at DESC
-");
+"); 
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -115,53 +125,56 @@ $reports = $oat->query("
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root{
-            --accent: #3CB3CC;
-            --accent-deep: #2aa0b3;
-            --glass-bg: rgba(255,255,255,0.55);
-            --glass-border: rgba(60,179,204,0.12);
+            --primary: #4c8eb1;
+            --primary-dark: #3cb2cc;
+            --glass-bg: rgba(255,255,255,0.85);
+            --glass-border: rgba(76,142,177,0.13);
             --muted: #6b7280;
         }
         body{
             font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
             margin:0;
             min-height:100vh;
-            background: linear-gradient(135deg, #f6fbfb 0%, #eef9fa 50%, #f9fcfd 100%);
+            /* Lighter glassy, light blue background */
+            background: linear-gradient(135deg, #f6fcfe 0%, #e3f6fa 60%, #d2f1f7 100%);
             color:#0f172a;
             -webkit-font-smoothing:antialiased;
         }
         .wrap{
-            max-width:900px;
+            max-width:1100px;
             margin:48px auto;
             padding:24px;
         }
         .glass{
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            box-shadow: 0 8px 30px rgba(15,23,42,0.06);
+            background: rgba(60, 178, 204, 0.09); /* lighter glassy effect */
+            border: 1px solid rgba(76,142,177,0.13);
+            box-shadow: 0 8px 30px rgba(60,178,204,0.08);
             backdrop-filter: blur(8px) saturate(120%);
-            border-radius:14px;
+            border-radius:18px;
             padding:32px 24px;
         }
         .title{
-            font-size:22px;
+            font-size:2rem;
             font-weight:800;
-            color:var(--accent-deep);
+            color:var(--primary);
             margin-bottom:8px;
+            letter-spacing: 1px;
         }
         .subtitle{
-            font-size:14px;
+            font-size:15px;
             color:var(--muted);
             margin-bottom:18px;
         }
         .table thead th{
-            color:var(--muted);
+            color:var(--primary-dark);
             font-size:13px;
             font-weight:700;
             background:transparent;
-            border-bottom:2px solid var(--accent);
+            border-bottom:2px solid var(--primary);
         }
         .table td{
             font-size:14px;
@@ -172,9 +185,36 @@ $reports = $oat->query("
             padding:4px 10px;
             border-radius:8px;
         }
-        .badge-admin{ background:var(--accent); color:#fff;}
+        .badge-admin{ background:var(--primary); color:#fff;}
         .badge-adviser{ background:#fbbf24; color:#fff;}
         .badge-super_admin{ background:#6366f1; color:#fff;}
+        .btn-approve {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            font-weight: 600;
+            border-radius: 8px;
+            padding: 0.4rem 1.1rem;
+            transition: background 0.2s;
+        }
+        .btn-approve:hover {
+            background: var(--primary-dark);
+        }
+        .btn-outline-secondary {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        .btn-outline-secondary:hover {
+            background: var(--primary);
+            color: #fff;
+        }
+        .modal-header {
+            background: var(--primary);
+            color: #fff;
+        }
+        .modal-title {
+            font-weight: 700;
+        }
         @media (max-width: 900px){
             .wrap{ max-width:100%; margin:0; padding:8px;}
             .glass{ padding:18px 8px;}
@@ -185,7 +225,7 @@ $reports = $oat->query("
 <body>
     <main class="wrap">
         <div class="glass">
-            <div class="title">OT Reports</div>
+            <div class="title"><i class="bi bi-clock-history me-2"></i>OT Reports</div>
             <div class="subtitle">All submitted overtime reports from OJT students.</div>
             <?php if (isset($_SESSION['message'])): ?>
                 <div class="alert alert-info mt-3"><?php echo htmlspecialchars($_SESSION['message']); unset($_SESSION['message']); ?></div>
@@ -207,33 +247,7 @@ $reports = $oat->query("
                     <tbody>
                         <?php if ($reports && $reports->num_rows > 0): ?>
                             <?php while($row = $reports->fetch_assoc()): 
-                                // Calculate actual OT hours for this report
-                                $actual_ot_hours = 0;
-                                $actual_time_out_display = 'N/A';
-                                // Fetch user's policy time out
-                                $stmt = $oat->prepare("SELECT default_time_out FROM site_settings LIMIT 1");
-                                $stmt->execute();
-                                $settings = $stmt->get_result()->fetch_assoc();
-                                $default_time_out = $settings['default_time_out'] ?? '17:00:00';
-                                $user_policy_time_out = $default_time_out;
-                                $stmt = $oat->prepare("SELECT tg.time_out FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
-                                $stmt->bind_param("i", $row['student_id']);
-                                $stmt->execute();
-                                $group = $stmt->get_result()->fetch_assoc();
-                                if ($group) {
-                                    $user_policy_time_out = $group['time_out'];
-                                }
-                                // Fetch actual time out
-                                $stmt = $oat->prepare("SELECT time_out FROM ojt_records WHERE user_id = ? AND date = ?");
-                                $stmt->bind_param("is", $row['student_id'], $row['ot_date']);
-                                $stmt->execute();
-                                $record = $stmt->get_result()->fetch_assoc();
-                                if ($record && $record['time_out'] && $record['time_out'] !== '00:00:00') {
-                                    $actual_time_out = strtotime($record['time_out']);
-                                    $policy_time_out_ts = strtotime($user_policy_time_out);
-                                    $actual_ot_hours = max(0, ($actual_time_out - $policy_time_out_ts) / 3600);
-                                    $actual_time_out_display = date('g:i A', $actual_time_out);
-                                }
+                                list($actual_ot_hours, $actual_time_out_display) = calculateActualOtHours($oat, $row['student_id'], $row['ot_date']);
                                 $hours_part = floor($actual_ot_hours);
                                 $minutes_part = round(($actual_ot_hours - $hours_part) * 60);
                                 $actual_ot_hours_display = $hours_part . ' hours ' . $minutes_part . ' minutes';
@@ -249,21 +263,22 @@ $reports = $oat->query("
                                         <?php if (!empty($row['proof_path'])): ?>
                                             <a href="<?= htmlspecialchars($row['proof_path']) ?>" target="_blank" class="btn btn-sm btn-outline-primary">View Proof</a>
                                         <?php else: ?>
-                                            No proof
+                                            <span class="text-muted">No proof</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
                                         <?php if (empty($row['approved'])): ?>
                                             <button 
-                                                class="btn btn-success btn-sm"
+                                                class="btn btn-approve btn-sm"
                                                 onclick="openApproveModal(
                                                     <?= $row['id'] ?>, 
-                                                    '<?= htmlspecialchars(addslashes($row['fname'] . ' ' . $row['lname'])) ?>', 
-                                                    '<?= htmlspecialchars(addslashes($row['ot_date'])) ?>', 
-                                                    '<?= htmlspecialchars(addslashes($row['ot_hours'])) ?>', 
-                                                    '<?= htmlspecialchars(addslashes($row['ot_reason'])) ?>',
-                                                    '<?= htmlspecialchars(addslashes($actual_ot_hours_display)) ?>',
-                                                    '<?= htmlspecialchars(addslashes($actual_time_out_display)) ?>'
+                                                    '<?= htmlspecialchars($row['fname'] . ' ' . $row['lname']) ?>', 
+                                                    '<?= htmlspecialchars($row['ot_date']) ?>', 
+                                                    '<?= htmlspecialchars($row['ot_hours']) ?>', 
+                                                    '<?= htmlspecialchars($row['ot_reason']) ?>',
+                                                    '<?= htmlspecialchars($actual_ot_hours_display) ?>',
+                                                    '<?= htmlspecialchars($actual_time_out_display) ?>',
+                                                    <?= $actual_ot_hours ?>
                                                 )"
                                             >
                                                 Approve
@@ -289,15 +304,15 @@ $reports = $oat->query("
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <form id="approveForm" method="post">
-            <div class="modal-header bg-success text-white">
-              <h5 class="modal-title" id="approveModalLabel">Approve OT Report</h5>
+            <div class="modal-header">
+              <h5 class="modal-title" id="approveModalLabel"><i class="bi bi-check-circle me-2"></i>Approve OT Report</h5>
               <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <input type="hidden" name="approve_id" id="approve_id_modal">
             <div class="modal-body" id="modal_body_content"></div>
             <div class="modal-footer">
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="submit" class="btn btn-success">Approve</button>
+              <button type="submit" class="btn btn-approve">Approve</button>
             </div>
           </form>
         </div>
@@ -305,57 +320,40 @@ $reports = $oat->query("
     </div>
 
     <script>
-function openApproveModal(id, name, date, hours, reason, actual_ot_hours_display, actual_time_out_display) {
+function openApproveModal(id, name, date, hours, reason, actual_ot_hours_display, actual_time_out_display, actual_ot_hours_num) {
     var modal = new bootstrap.Modal(document.getElementById('approveModal'));
     document.getElementById('approve_id_modal').value = id;
-    
-    var content = `<p>Approve OT for <strong>${name}</strong>?</p>
-                   <p>Date: <strong>${date}</strong></p>
-                   <p>Hours: <strong>${hours}</strong></p>
-                   <p>Reason: <strong>${reason}</strong></p>`;
-    
-    var actual_ot_hours_num = parseFloat('<?= $actual_ot_hours ?>'); // Assuming passed
+    var content = `<div class="mb-2"><strong>${name}</strong></div>
+                   <div class="mb-2"><i class="bi bi-calendar-event"></i> <strong>Date:</strong> ${date}</div>
+                   <div class="mb-2"><i class="bi bi-hourglass-split"></i> <strong>Claimed Hours:</strong> ${hours}</div>
+                   <div class="mb-2"><i class="bi bi-chat-left-text"></i> <strong>Reason:</strong> ${reason}</div>`;
     if (actual_ot_hours_num < parseFloat(hours)) {
         content += `
-            <p><strong>They didn't actually finish the OT.</strong></p>
-            <p>Actual time out: ${actual_time_out_display}. Actual OT: ${actual_ot_hours_display}.</p>
-            <div>
-                <label><input type="radio" name="approval_type" value="full" checked> Approve Full Claimed Hours (${hours} hours)</label><br>
-                <label><input type="radio" name="approval_type" value="actual"> Approve Only Actual Hours (${actual_ot_hours_display})</label><br>
-                <label><input type="radio" name="approval_type" value="deny"> Deny</label>
+            <div class="alert alert-warning mt-2 mb-2 p-2">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Actual OT is less than claimed.</strong><br>
+                <span>Actual time out: <b>${actual_time_out_display}</b>. Actual OT: <b>${actual_ot_hours_display}</b>.</span>
+            </div>
+            <div class="mb-2">
+                <label class="form-check">
+                    <input type="radio" class="form-check-input" name="approval_type" value="full" checked>
+                    <span class="form-check-label">Approve Full Claimed Hours (${hours} hours)</span>
+                </label>
+                <label class="form-check">
+                    <input type="radio" class="form-check-input" name="approval_type" value="actual">
+                    <span class="form-check-label">Approve Only Actual Hours (${actual_ot_hours_display})</span>
+                </label>
+                <label class="form-check">
+                    <input type="radio" class="form-check-input" name="approval_type" value="deny">
+                    <span class="form-check-label">Deny</span>
+                </label>
             </div>
         `;
     }
-    
     document.getElementById('modal_body_content').innerHTML = content;
     modal.show();
 }
 </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-    .modal-animate {
-        opacity: 0;
-        transform: translateY(40px) scale(0.98);
-        transition: opacity .35s cubic-bezier(.4,0,.2,1), transform .35s cubic-bezier(.4,0,.2,1);
-    }
-    .modal-animate.show {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-    #approveModal {
-        background: rgba(0,0,0,0.2);
-        pointer-events: auto;
-    }
-    #approveModal.hidden {
-        display: none;
-    }
-    #approveModal.flex {
-        display: flex;
-    }
-    #modalCard {
-        pointer-events: auto;
-    }
-</style>
 </body>
 </html>

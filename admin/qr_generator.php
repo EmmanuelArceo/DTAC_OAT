@@ -49,13 +49,69 @@ $time_out_data = generate_qr_data('time_out');
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background: linear-gradient(135deg, #e0f2f1 0%, #f1f8e9 100%); }
+        :root {
+            --primary: #4c8eb1;
+            --primary-dark: #3cb2cc;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --light: #f8fafc;
+            --dark: #0f172a;
+            --border: #e2e8f0;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Lighter glassy, light blue background */
+            background: linear-gradient(135deg, #f6fcfe 0%, #e3f6fa 60%, #d2f1f7 100%);
+            min-height: 100vh;
+        }
+        .qr-glass {
+            background: rgba(60, 178, 204, 0.09); /* lighter glassy effect */
+            border-radius: 22px;
+            box-shadow: 0 8px 32px 0 rgba(60,178,204,0.08);
+            backdrop-filter: blur(6px) saturate(120%);
+            max-width: 700px;
+            margin: 48px auto;
+            padding: 2.5rem 2rem;
+        }
+        .qr-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            letter-spacing: 1px;
+            text-align: center;
+        }
+        .toggle-btn {
+            min-width: 180px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 0.6rem 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: background 0.2s;
+        }
+        .toggle-btn:hover {
+            background: var(--primary-dark);
+            color: #fff;
+        }
         .qr-section {
             transition: box-shadow 0.2s;
+            background: #fff;
+            border-radius: 1.5rem;
+            padding: 2rem 1.5rem;
+            margin: 0 0.5rem;
+            min-width: 320px;
+            max-width: 100%;
+            box-shadow: 0 2px 12px 0 rgba(76,142,177,0.08);
+            border: 2px solid transparent;
         }
         .qr-section.active {
-            box-shadow: 0 4px 24px 0 rgba(34,197,94,0.15);
-            border: 2px solid #43a047;
+            box-shadow: 0 4px 24px 0 rgba(76,142,177,0.15);
+            border: 2px solid var(--primary-dark);
         }
         .qr-img {
             width: 200px;
@@ -64,34 +120,58 @@ $time_out_data = generate_qr_data('time_out');
             background: #fff;
             border-radius: 1rem;
             border: 2px solid #e0e0e0;
+            margin-bottom: 1rem;
         }
-        .toggle-btn {
-            min-width: 180px;
+        .qr-label {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .qr-label.time-in { color: var(--success);}
+        .qr-label.time-out { color: var(--primary);}
+        .qr-expiry {
+            font-size: 0.98rem;
+            color: var(--primary-dark);
+            margin-bottom: 0.5rem;
+        }
+        .qr-note {
+            margin-top: 2rem;
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.98rem;
+        }
+        @media (max-width: 767.98px) {
+            .qr-glass { padding: 1rem 0.2rem; }
+            .qr-title { font-size: 1.2rem; }
+            .qr-section { padding: 1.1rem 0.5rem; min-width: 0; }
+            .qr-img { width: 140px; height: 140px; }
         }
     </style>
 </head>
 <body>
-    <div class="container" style="max-width: 700px; margin-top: 40px;">
-        <div class="card shadow-lg p-4 mb-4">
-            <h1 class="text-center fw-bold text-success mb-4">OJT QR Generators</h1>
-            <div class="text-center mb-4">
-                <button id="toggle-qr-btn" class="btn btn-success toggle-btn">Show Time Out QR</button>
+    <div class="qr-glass">
+        <div class="qr-title">
+            <i class="bi bi-qr-code-scan me-2"></i>OJT QR Generators
+        </div>
+        <div class="text-center mb-4">
+            <button id="toggle-qr-btn" class="toggle-btn">Show Time Out QR</button>
+        </div>
+        <div class="d-flex justify-content-center flex-wrap">
+            <!-- Time In QR -->
+            <div id="time-in-section" class="qr-section active d-flex flex-column align-items-center">
+                <div class="qr-label time-in"><i class="bi bi-box-arrow-in-right"></i> Time In QR Code</div>
+                <img id="qr-img-time_in" src="<?= $time_in_data['qr_img'] ?>" alt="Time In QR Code" class="qr-img" />
+                <div id="qr-expiry-time-in" class="qr-expiry">Expires in: <span id="qr-expiry-seconds-time_in"></span>s</div>
             </div>
-            <div class="d-flex justify-content-center">
-                <!-- Time In QR -->
-                <div id="time-in-section" class="qr-section active d-flex flex-column align-items-center bg-light rounded-4 p-4" style="min-width:320px;max-width:100%;">
-                    <h2 class="fs-5 fw-semibold text-success mb-2">Time In QR Code</h2>
-                    <img id="qr-img-time_in" src="<?= $time_in_data['qr_img'] ?>" alt="Time In QR Code" class="qr-img mb-2" />
-                    <div id="qr-expiry-time-in" class="small text-secondary">Expires in: <span id="qr-expiry-seconds-time_in"></span>s</div>
-                </div>
-                <!-- Time Out QR -->
-                <div id="time-out-section" class="qr-section d-none d-flex flex-column align-items-center bg-light rounded-4 p-4" style="min-width:320px;max-width:100%;">
-                    <h2 class="fs-5 fw-semibold text-primary mb-2">Time Out QR Code</h2>
-                    <img id="qr-img-time_out" src="<?= $time_out_data['qr_img'] ?>" alt="Time Out QR Code" class="qr-img mb-2" />
-                    <div id="qr-expiry-time-out" class="small text-secondary">Expires in: <span id="qr-expiry-seconds-time_out"></span>s</div>
-                </div>
+            <!-- Time Out QR -->
+            <div id="time-out-section" class="qr-section d-none d-flex flex-column align-items-center">
+                <div class="qr-label time-out"><i class="bi bi-box-arrow-right"></i> Time Out QR Code</div>
+                <img id="qr-img-time_out" src="<?= $time_out_data['qr_img'] ?>" alt="Time Out QR Code" class="qr-img" />
+                <div id="qr-expiry-time-out" class="qr-expiry">Expires in: <span id="qr-expiry-seconds-time_out"></span>s</div>
             </div>
-            <p class="mt-4 text-center text-muted small">QR codes refresh every 2 seconds and are valid only for today.</p>
+        </div>
+        <div class="qr-note">
+            QR codes refresh every 2 seconds and are valid only for today.
         </div>
     </div>
     <!-- Bootstrap 5 JS -->

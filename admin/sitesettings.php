@@ -18,7 +18,7 @@ $settings = $stmt->get_result()->fetch_assoc();
 $default_time_in = $settings['time_in'] ?? '08:00:00';
 $default_time_out = $settings['time_out'] ?? '17:00:00';
 $lunch_start = $settings['lunch_start'] ?? '12:00:00';
-$lunch_end = $settings['lunch_end'] ?? '14:00:00'; // Updated default to 2h
+$lunch_end = $settings['lunch_end'] ?? '14:00:00';
 
 // Handle POST requests with prepared statements for security
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -27,8 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $time_out = date('H:i:s', strtotime($_POST['group_time_out']));
         $lunch_start_val = date('H:i:s', strtotime($_POST['group_lunch_start']));
         $lunch_end_val = date('H:i:s', strtotime($_POST['group_lunch_end']));
-        
-        // Validation
         $error = '';
         if (strtotime($lunch_start_val) < strtotime($time_in)) {
             $error = "Lunch start cannot be before time in.";
@@ -37,7 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (strtotime($lunch_end_val) <= strtotime($lunch_start_val)) {
             $error = "Lunch end must be after lunch start.";
         }
-        
         if ($error) {
             $success = $error;
             $alert_type = 'danger';
@@ -55,12 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $success = "Time group deleted!";
         $alert_type = 'success';
     } elseif (isset($_POST['add_user_to_group'])) {
-        // Remove user from any existing group first
         $stmt = $oat->prepare("DELETE FROM user_time_groups WHERE user_id=?");
         $stmt->bind_param("i", $_POST['user_id']);
         $stmt->execute();
-        
-        // Add to the new group
         $stmt = $oat->prepare("INSERT INTO user_time_groups (user_id, group_id) VALUES (?, ?)");
         $stmt->bind_param("ii", $_POST['user_id'], $_POST['group_id']);
         $stmt->execute();
@@ -77,8 +71,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $edit_time_out = date('H:i:s', strtotime($_POST['edit_group_time_out']));
         $edit_lunch_start = date('H:i:s', strtotime($_POST['edit_group_lunch_start']));
         $edit_lunch_end = date('H:i:s', strtotime($_POST['edit_group_lunch_end']));
-        
-        // Validation
         $error = '';
         if (strtotime($edit_lunch_start) < strtotime($edit_time_in)) {
             $error = "Lunch start cannot be before time in.";
@@ -87,7 +79,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (strtotime($edit_lunch_end) <= strtotime($edit_lunch_start)) {
             $error = "Lunch end must be after lunch start.";
         }
-        
         if ($error) {
             $success = $error;
             $alert_type = 'danger';
@@ -105,8 +96,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new_time_out = date('H:i:s', strtotime($_POST['default_time_out'] ?? '17:00:00'));
     $new_lunch_start = date('H:i:s', strtotime($_POST['lunch_start'] ?? '12:00:00'));
     $new_lunch_end = date('H:i:s', strtotime($_POST['lunch_end'] ?? '14:00:00'));
-    
-    // Validation for default group
     $error = '';
     if (strtotime($new_lunch_start) < strtotime($new_time_in)) {
         $error = "Lunch start cannot be before time in.";
@@ -115,7 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (strtotime($new_lunch_end) <= strtotime($new_lunch_start)) {
         $error = "Lunch end must be after lunch start.";
     }
-    
     if ($error) {
         $success = $error;
         $alert_type = 'danger';
@@ -153,21 +141,86 @@ $time_groups = $oat->query("SELECT * FROM time_groups ORDER BY name");
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { background: #f7fbfb; }
+        :root {
+            --primary: #4c8eb1;
+            --primary-dark: #3cb2cc;
+            --light: #f8fafc;
+            --dark: #0f172a;
+            --border: #e2e8f0;
+        }
+        body { 
+            /* Lighter glassy, light blue background */
+            background: linear-gradient(135deg, #f6fcfe 0%, #e3f6fa 60%, #d2f1f7 100%);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+        }
         .glass {
-            background: #fff;
-            border-radius: 16px;
-            box-shadow: 0 12px 36px rgba(15,23,42,0.06);
-            max-width: 800px;
-            margin: 40px auto;
-            padding: 32px 24px;
+            background: rgba(60, 178, 204, 0.09); /* lighter glassy effect */
+            border-radius: 18px;
+            box-shadow: 0 12px 36px rgba(60,178,204,0.08);
+            max-width: 900px;
+            margin: 48px auto;
+            padding: 36px 28px;
+            backdrop-filter: blur(6px) saturate(120%);
+        }
+        .settings-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 18px;
+            letter-spacing: 1px;
+        }
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin-bottom: 12px;
+        }
+        .form-label {
+            font-weight: 600;
+            color: var(--primary);
+        }
+        .btn-primary, .btn-success {
+            background: var(--primary);
+            border: none;
+            font-weight: 600;
+        }
+        .btn-primary:hover, .btn-success:hover {
+            background: var(--primary-dark);
+        }
+        .btn-info, .btn-warning {
+            font-weight: 600;
+        }
+        .table th {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+        }
+        .table td {
+            vertical-align: middle;
+        }
+        .modal-header {
+            background: var(--primary);
+            color: #fff;
+        }
+        .modal-title {
+            font-weight: 700;
+        }
+        @media (max-width: 991.98px) {
+            .glass { padding: 18px 6px; }
+            .settings-title { font-size: 1.3rem; }
+        }
+        @media (max-width: 767.98px) {
+            .glass { padding: 8px 2px; }
+            .settings-title { font-size: 1.1rem; }
         }
     </style>
 </head>
 <body>
     <div class="glass">
-        <h3 class="mb-4">Site Settings</h3>
+        <div class="settings-title"><i class="bi bi-gear-fill me-2"></i>Site Settings</div>
         <?php if (!empty($success)): ?>
             <div class="alert alert-<?= $alert_type ?? 'success' ?> alert-dismissible fade show" role="alert" id="success-alert">
                 <?= htmlspecialchars($success) ?>
@@ -175,8 +228,8 @@ $time_groups = $oat->query("SELECT * FROM time_groups ORDER BY name");
             </div>
         <?php endif; ?>
         <form method="post" class="mb-4">
-            <h5>Default Time Group</h5>
-            <div class="row">
+            <div class="section-title">Default Time Group</div>
+            <div class="row g-3">
                 <div class="col-md-3">
                     <label for="default_time_in" class="form-label">Default Time In</label>
                     <input type="text" id="default_time_in" name="default_time_in" class="form-control time-picker" value="<?= htmlspecialchars(date('h:i A', strtotime($default_time_in))) ?>" required>
@@ -197,7 +250,7 @@ $time_groups = $oat->query("SELECT * FROM time_groups ORDER BY name");
             <button type="submit" class="btn btn-primary mt-3">Save Default Group</button>
         </form>
 
-        <h5 class="mb-3">Time Groups</h5>
+        <div class="section-title">Time Groups</div>
         <form method="post" class="mb-4">
             <div class="row g-2">
                 <div class="col-md-2">
@@ -221,8 +274,8 @@ $time_groups = $oat->query("SELECT * FROM time_groups ORDER BY name");
             </div>
         </form>
 
-        <div class="table-responsive">
-            <table class="table table-striped">
+        <div class="table-responsive mb-4">
+            <table class="table table-striped align-middle">
                 <thead>
                     <tr>
                         <th>Name</th>
@@ -322,7 +375,6 @@ $time_groups = $oat->query("SELECT * FROM time_groups ORDER BY name");
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
-        // Initialize Flatpickr for all time pickers with 12-hour format and AM/PM
         flatpickr('.time-picker', {
             enableTime: true,
             noCalendar: true,
@@ -335,7 +387,7 @@ $time_groups = $oat->query("SELECT * FROM time_groups ORDER BY name");
         if (alertElement) {
             setTimeout(() => {
                 alertElement.classList.remove('show');
-                setTimeout(() => alertElement.remove(), 150); // Wait for fade transition
+                setTimeout(() => alertElement.remove(), 150);
             }, 3000);
         }
 

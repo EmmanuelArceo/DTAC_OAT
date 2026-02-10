@@ -1,4 +1,5 @@
 <?php
+
 include '../db.php';
 include 'nav.php';
 if (session_status() === PHP_SESSION_NONE) {
@@ -8,6 +9,37 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin')
     header("Location: ../login.php");
     exit;
 }
+
+// Get statistics
+$ojt_count = $oat->query("SELECT COUNT(*) as c FROM users WHERE role='ojt'")->fetch_assoc()['c'] ?? 0;
+$admin_count = $oat->query("SELECT COUNT(*) as c FROM users WHERE role='admin'")->fetch_assoc()['c'] ?? 0;
+$active_today = $oat->query("SELECT COUNT(DISTINCT user_id) as c FROM ojt_records WHERE date = CURDATE()")->fetch_assoc()['c'] ?? 0;
+$pending = $oat->query("SELECT COUNT(*) as c FROM ojt_records WHERE time_out IS NULL AND date = CURDATE()")->fetch_assoc()['c'] ?? 0;
+
+// Get weekly attendance trend
+$weekly_data = $oat->query("
+    SELECT DATE(date) as day, COUNT(DISTINCT user_id) as count 
+    FROM ojt_records 
+    WHERE date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    GROUP BY DATE(date)
+    ORDER BY day ASC
+");
+$weekly_labels = [];
+$weekly_counts = [];
+while($row = $weekly_data->fetch_assoc()) {
+    $weekly_labels[] = date('M d', strtotime($row['day']));
+    $weekly_counts[] = $row['count'];
+}
+
+// Get recent activities
+$recent_activities = $oat->query("
+    SELECT u.fname, u.lname, u.profile_img, r.time_in, r.date, 'time_in' as action
+    FROM ojt_records r
+    JOIN users u ON r.user_id = u.id
+    WHERE r.time_in IS NOT NULL
+    ORDER BY r.date DESC, r.time_in DESC
+    LIMIT 5
+");
 ?>
 
 <!DOCTYPE html>
@@ -16,273 +48,768 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin')
     <meta charset="UTF-8">
     <title>Super Admin Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --primary: #4c8eb1;
+            --primary-dark: #3cb2cc;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --light: #f8fafc;
+            --dark: #0f172a;
+            --border: #e2e8f0;
+            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
-            background: #ffffff; /* changed to plain white background */
+            /* Lighter glassy, light blue background */
+            background: linear-gradient(135deg, #f6fcfe 0%, #e3f6fa 60%, #d2f1f7 100%);
             min-height: 100vh;
-            color: #14532d;
+            color: var(--dark);
+            padding-bottom: 2rem;
         }
-        .glass {
-            background: #ffffff; /* keep cards solid white on white bg */
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
-            /* removed heavy backdrop-filter for cleaner white look */
-            border-radius: 1.5rem;
-        
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            background: rgba(60, 178, 204, 0.09); /* lighter glassy effect */
+            border-radius: 22px;
+            box-shadow: 0 8px 32px 0 rgba(60,178,204,0.08);
+            backdrop-filter: blur(6px) saturate(120%);
         }
+
+        /* Header Section */
         .dashboard-header {
-            font-size: 2.7rem;
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-lg);
+            border-left: 5px solid var(--primary);
+        }
+
+        .dashboard-header h1 {
+            font-size: 2rem;
             font-weight: 800;
-            color: #219150;
-            letter-spacing: 1px;
+            color: var(--dark);
             margin-bottom: 0.5rem;
         }
-        .dashboard-sub {
-            color: #388e3c;
-            font-size: 1.25rem;
+
+        .dashboard-header p {
+            color: #64748b;
+            font-size: 1rem;
+            margin: 0;
+        }
+
+        .welcome-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-top: 1rem;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
             margin-bottom: 2rem;
         }
+
         .stat-card {
-            border: none;
-            border-radius: 1.25rem;
-            background: linear-gradient(120deg, #e8f5e9 60%, #e0f2f1 100%);
-            box-shadow: 0 2px 16px 0 rgba(22,101,52,0.08);
-            padding: 2rem 1.5rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: box-shadow 0.2s, transform 0.2s;
+            background: white;
+            border-radius: 16px;
+            padding: 1.75rem;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
         }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--card-color), transparent);
+        }
+
         .stat-card:hover {
-            box-shadow: 0 8px 32px 0 rgba(22,101,52,0.16);
-            transform: translateY(-2px) scale(1.03);
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
         }
+
+        .stat-card.primary { --card-color: var(--primary); }
+        .stat-card.success { --card-color: var(--secondary); }
+        .stat-card.warning { --card-color: var(--warning); }
+        .stat-card.danger { --card-color: var(--danger); }
+
         .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-card.primary .stat-icon {
+            background: rgba(76, 142, 177, 0.1);
+            color: var(--primary);
+        }
+
+        .action-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary);
+            background: linear-gradient(135deg, rgba(76, 142, 177, 0.05), rgba(60, 178, 204, 0.1));
+            color: var(--primary);
+        }
+
+        .action-btn i {
+            font-size: 2rem;
+            color: var(--primary);
+        }
+
+        .activity-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(76, 142, 177, 0.1);
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+
+        .stat-value {
             font-size: 2.5rem;
-            color: #219150;
+            font-weight: 800;
+            color: var(--dark);
+            line-height: 1;
             margin-bottom: 0.5rem;
         }
-        .stat-value {
-            font-size: 2.2rem;
-            font-weight: 800;
-            color: #14532d;
-        }
+
         .stat-label {
-            font-size: 1.1rem;
-            color: #388e3c;
-            font-weight: 600;
-            margin-top: 0.3rem;
+            color: #64748b;
+            font-size: 0.95rem;
+            font-weight: 500;
+            margin-bottom: 0.75rem;
         }
-        .action-card {
-            border: none;
-            border-radius: 1.25rem;
-            background: #fff;
-            box-shadow: 0 2px 16px 0 rgba(22,101,52,0.08);
-            padding: 2rem 1.5rem;
+
+        .stat-change {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+        }
+
+        .stat-change.positive {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--secondary);
+        }
+
+        .stat-change.negative {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+        }
+
+        /* Main Grid Layout */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        @media (min-width: 992px) {
+            .content-grid {
+                grid-template-columns: 2fr 1fr;
+            }
+        }
+
+        /* Card Component */
+        .card-custom {
+            background: white;
+            border-radius: 16px;
+            padding: 1.75rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header-custom {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .card-header-custom h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin: 0;
+        }
+
+        .card-header-custom .badge {
+            font-weight: 600;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .action-btn {
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem 1rem;
+            text-align: center;
+            text-decoration: none;
+            color: var(--dark);
+            transition: all 0.3s ease;
             display: flex;
             flex-direction: column;
             align-items: center;
-            transition: box-shadow 0.2s, transform 0.2s;
-            text-decoration: none;
-            min-height: 220px;
+            gap: 0.75rem;
         }
-        .action-card:hover {
-            box-shadow: 0 8px 32px 0 rgba(22,101,52,0.16);
-            transform: translateY(-2px) scale(1.03);
-            text-decoration: none;
+
+        /* Active OJTs Table */
+        .ojt-table {
+            width: 100%;
+            margin-top: 1rem;
         }
-        .action-icon {
-            font-size: 2.2rem;
-            color: #219150;
-            margin-bottom: 0.7rem;
+
+        .ojt-table thead th {
+            background: var(--light);
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            padding: 1rem;
+            border: none;
         }
-        .action-title {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #14532d;
-            margin-bottom: 0.2rem;
+
+        .ojt-table tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s ease;
         }
-        .action-desc {
-            color: #388e3c;
-            font-size: 0.97rem;
-            text-align: center;
+
+        .ojt-table tbody tr:hover {
+            background: var(--light);
         }
-        @media (max-width: 991.98px) {
-            .dashboard-header { font-size: 2rem; }
-            .stat-card, .action-card { padding: 1.2rem 0.7rem; }
+
+        .ojt-table tbody td {
+            padding: 1rem;
+            vertical-align: middle;
         }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid var(--border);
+        }
+
+        .user-details h6 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--dark);
+            margin: 0;
+        }
+
+        .user-details small {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .status-badge.active {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--secondary);
+        }
+
+        .status-badge.pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Recent Activity */
+        .activity-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            transition: background 0.2s ease;
+        }
+
+        .activity-item:hover {
+            background: var(--light);
+        }
+
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 1rem;
+        }
+
+        /* Responsive */
         @media (max-width: 767.98px) {
-            .dashboard-header { font-size: 1.5rem; }
-            .main-content { margin-left: 0 !important; }
+            .dashboard-container {
+                padding: 1rem;
+            }
+
+            .dashboard-header h1 {
+                font-size: 1.5rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .stat-value {
+                font-size: 2rem;
+            }
+
+            .card-custom {
+                padding: 1.25rem;
+            }
+
+            .quick-actions {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .ojt-table {
+                font-size: 0.875rem;
+            }
+
+            .user-avatar {
+                width: 40px;
+                height: 40px;
+            }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #64748b;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+
+        .empty-state h5 {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-state p {
+            font-size: 0.95rem;
         }
     </style>
 </head>
 <body>
-  
-    <div class="container main-content py-5" style="max-width: 1200px;">
-        <!-- Header -->
-        <div class="glass p-4 mb-4">
-            <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between">
-                <div>
-                    <div class="dashboard-header">Super Admin Dashboard</div>
-                    <div class="dashboard-sub">Welcome, Super Admin! Here’s an overview of your OJT system.</div>
+    <div class="dashboard-container">
+        <!-- Dashboard Header -->
+        <div class="dashboard-header">
+            <h1><i class="bi bi-speedometer2 me-2"></i>Super Admin Dashboard</h1>
+            <p>Monitor and manage your OJT system efficiently</p>
+            <span class="welcome-badge">
+                <i class="bi bi-person-circle me-1"></i> Welcome, Super Admin!
+            </span>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card primary">
+                <div class="stat-icon">
+                    <i class="bi bi-people-fill"></i>
                 </div>
+                <div class="stat-value"><?= $ojt_count ?></div>
+                <div class="stat-label">Total OJTs</div>
+                <span class="stat-change positive">
+                    <i class="bi bi-arrow-up"></i> Active Users
+                </span>
+            </div>
+
+            <div class="stat-card success">
+                <div class="stat-icon">
+                    <i class="bi bi-person-check-fill"></i>
+                </div>
+                <div class="stat-value"><?= $active_today ?></div>
+                <div class="stat-label">Active Today</div>
+                <span class="stat-change positive">
+                    <i class="bi bi-clock"></i> Real-time
+                </span>
+            </div>
+
+            <div class="stat-card warning">
+                <div class="stat-icon">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+                <div class="stat-value"><?= $pending ?></div>
+                <div class="stat-label">Pending Time-Out</div>
+                <span class="stat-change <?= $pending > 0 ? 'negative' : 'positive' ?>">
+                    <i class="bi bi-<?= $pending > 0 ? 'exclamation-circle' : 'check-circle' ?>"></i> 
+                    <?= $pending > 0 ? 'Needs Attention' : 'All Clear' ?>
+                </span>
+            </div>
+
+            <div class="stat-card danger">
+                <div class="stat-icon">
+                    <i class="bi bi-person-badge-fill"></i>
+                </div>
+                <div class="stat-value"><?= $admin_count ?></div>
+                <div class="stat-label">Total Admins</div>
+                <span class="stat-change positive">
+                    <i class="bi bi-shield-check"></i> System Users
+                </span>
             </div>
         </div>
-        <!-- Stat Cards -->
-        <div class="row g-4 mb-5">
-            <?php
-            $ojt_count = $oat->query("SELECT COUNT(*) as c FROM users WHERE role='ojt'")->fetch_assoc()['c'] ?? 0;
-            $admin_count = $oat->query("SELECT COUNT(*) as c FROM users WHERE role='admin'")->fetch_assoc()['c'] ?? 0;
-            $active_today = $oat->query("SELECT COUNT(DISTINCT user_id) as c FROM ojt_records WHERE date = CURDATE()")->fetch_assoc()['c'] ?? 0;
-            $pending = $oat->query("SELECT COUNT(*) as c FROM ojt_records WHERE time_out IS NULL AND date = CURDATE()")->fetch_assoc()['c'] ?? 0;
-            ?>
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <span class="stat-icon"><i class="bi bi-people-fill"></i></span>
-                    <span class="stat-value"><?= $ojt_count ?></span>
-                    <span class="stat-label">Total OJTs</span>
-                </div>
+
+        <!-- Quick Actions -->
+        <div class="card-custom">
+            <div class="card-header-custom">
+                <h3><i class="bi bi-lightning-charge-fill me-2"></i>Quick Actions</h3>
             </div>
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <span class="stat-icon"><i class="bi bi-person-badge-fill"></i></span>
-                    <span class="stat-value"><?= $admin_count ?></span>
-                    <span class="stat-label">Total Admins</span>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <span class="stat-icon"><i class="bi bi-person-check-fill"></i></span>
-                    <span class="stat-value"><?= $active_today ?></span>
-                    <span class="stat-label">Active Today</span>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <span class="stat-icon"><i class="bi bi-clock-history"></i></span>
-                    <span class="stat-value"><?= $pending ?></span>
-                    <span class="stat-label">Pending Time Out</span>
-                </div>
-            </div>
-        </div>
-        <!-- Main Actions -->
-        <div class="row g-4 mb-5">
-            <div class="col-12 col-md-4">
-                <a href="manageojt.php" class="action-card h-100">
-                    <span class="action-icon"><i class="bi bi-people-fill"></i></span>
-                    <span class="action-title">Manage OJTs</span>
-                    <span class="action-desc">View and manage all OJT users.</span>
+            <div class="quick-actions">
+                <a href="manageojt.php" class="action-btn">
+                    <i class="bi bi-people-fill"></i>
+                    <span>Manage OJTs</span>
                 </a>
-            </div>
-            <div class="col-12 col-md-4">
-                <a href="manage_admins.php" class="action-card h-100">
-                    <span class="action-icon"><i class="bi bi-person-badge-fill"></i></span>
-                    <span class="action-title">Manage Admins</span>
-                    <span class="action-desc">Add, edit, or remove admin accounts.</span>
+                <a href="manage_admins.php" class="action-btn">
+                    <i class="bi bi-person-badge-fill"></i>
+                    <span>Manage Admins</span>
                 </a>
-            </div>
-            <div class="col-12 col-md-4">
-                <a href="site_settings.php" class="action-card h-100">
-                    <span class="action-icon"><i class="bi bi-gear-fill"></i></span>
-                    <span class="action-title">Site Settings</span>
-                    <span class="action-desc">Configure system-wide settings.</span>
+                <a href="reports.php" class="action-btn">
+                    <i class="bi bi-bar-chart-fill"></i>
+                    <span>View Reports</span>
                 </a>
-            </div>
-        </div>
-        <!-- Reports & QR Generator -->
-        <div class="row g-4 mb-5">
-            <div class="col-12 col-md-6">
-                <a href="reports.php" class="action-card h-100">
-                    <span class="action-icon"><i class="bi bi-bar-chart-fill"></i></span>
-                    <span class="action-title">Reports</span>
-                    <span class="action-desc">View attendance and system reports.</span>
+                <a href="qr_generator.php" class="action-btn">
+                    <i class="bi bi-qr-code-scan"></i>
+                    <span>QR Generator</span>
                 </a>
-            </div>
-            <div class="col-12 col-md-6">
-                <a href="qr_generator.php" class="action-card h-100">
-                    <span class="action-icon"><i class="bi bi-qr-code-scan"></i></span>
-                    <span class="action-title">QR Generator</span>
-                    <span class="action-desc">Generate QR codes for attendance.</span>
+                <a href="site_settings.php" class="action-btn">
+                    <i class="bi bi-gear-fill"></i>
+                    <span>Site Settings</span>
                 </a>
             </div>
         </div>
 
-        <!-- Active OJTs Today -->
-        <?php
-        $active_ojts = $oat->query("
-            SELECT u.id, u.username, u.fname, u.lname, u.email, u.profile_img, r.time_in, r.time_out
-            FROM users u
-            JOIN ojt_records r ON u.id = r.user_id
-            WHERE u.role = 'ojt' AND r.date = CURDATE() AND r.time_in IS NOT NULL AND r.time_in != ''
-            ORDER BY r.time_in ASC
-        ");
-        ?>
-        <div class="glass p-4 mb-5">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0" style="color:#14532d;font-weight:700;">Active OJTs Today</h5>
-                <small class="text-muted"><?= $active_ojts ? $active_ojts->num_rows : 0 ?> active</small>
+        <!-- Main Content Grid -->
+        <div class="content-grid">
+            <!-- Left Column - Active OJTs -->
+            <div>
+                <div class="card-custom">
+                    <div class="card-header-custom">
+                        <h3><i class="bi bi-person-check me-2"></i>Active OJTs Today</h3>
+                        <span class="badge bg-success"><?= $active_today ?> Active</span>
+                    </div>
+
+                    <?php
+                    $active_ojts = $oat->query("
+                        SELECT u.id, u.username, u.fname, u.lname, u.email, u.profile_img, 
+                               r.time_in, r.time_out
+                        FROM users u
+                        JOIN ojt_records r ON u.id = r.user_id
+                        WHERE u.role = 'ojt' AND r.date = CURDATE() 
+                        AND r.time_in IS NOT NULL AND r.time_in != ''
+                        ORDER BY r.time_in ASC
+                    ");
+                    ?>
+
+                    <?php if ($active_ojts && $active_ojts->num_rows > 0): ?>
+                        <div class="table-responsive">
+                            <table class="ojt-table">
+                                <thead>
+                                    <tr>
+                                        <th>OJT User</th>
+                                        <th>Time In</th>
+                                        <th>Time Out</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while ($ojt = $active_ojts->fetch_assoc()): ?>
+                                        <?php
+                                            $img = '../uploads/noimg.png';
+                                            if (!empty($ojt['profile_img']) && file_exists('../' . $ojt['profile_img'])) {
+                                                $img = '../' . $ojt['profile_img'];
+                                            }
+                                            $time_in = date('g:i A', strtotime($ojt['time_in']));
+                                            $has_timeout = $ojt['time_out'] && $ojt['time_out'] !== '00:00:00';
+                                            $time_out = $has_timeout ? date('g:i A', strtotime($ojt['time_out'])) : '--';
+                                        ?>
+                                        <tr>
+                                            <td>
+                                                <div class="user-info">
+                                                    <img src="<?= htmlspecialchars($img) ?>" 
+                                                         alt="<?= htmlspecialchars($ojt['fname'].' '.$ojt['lname']) ?>" 
+                                                         class="user-avatar">
+                                                    <div class="user-details">
+                                                        <h6><?= htmlspecialchars($ojt['fname'].' '.$ojt['lname']) ?></h6>
+                                                        <small>@<?= htmlspecialchars($ojt['username']) ?></small>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td><strong><?= $time_in ?></strong></td>
+                                            <td><strong><?= $time_out ?></strong></td>
+                                            <td>
+                                                <span class="status-badge <?= $has_timeout ? 'pending' : 'active' ?>">
+                                                    <span class="status-indicator"></span>
+                                                    <?= $has_timeout ? 'Completed' : 'Ongoing' ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <a href="dtrview.php?user_id=<?= $ojt['id'] ?>" 
+                                                   class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-file-text me-1"></i> View DTR
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php else: ?>
+                        <div class="empty-state">
+                            <i class="bi bi-person-x"></i>
+                            <h5>No Active OJTs</h5>
+                            <p>No OJT has clocked in today yet.</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Weekly Attendance Chart -->
+                <div class="card-custom">
+                    <div class="card-header-custom">
+                        <h3><i class="bi bi-graph-up me-2"></i>Weekly Attendance Trend</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="attendanceChart"></canvas>
+                    </div>
+                </div>
             </div>
 
-            <?php if ($active_ojts && $active_ojts->num_rows > 0): ?>
-                <div class="table-responsive">
-                    <table class="table align-middle">
-                        <thead>
-                            <tr class="text-muted">
-                                <th scope="col">OJT</th>
-                                <th scope="col">Username</th>
-                                <th scope="col">Time In</th>
-                                <th scope="col">Time Out</th>
-                                <th scope="col">DTR Report</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($ojt = $active_ojts->fetch_assoc()): ?>
+            <!-- Right Column - Recent Activity -->
+            <div>
+                <div class="card-custom">
+                    <div class="card-header-custom">
+                        <h3><i class="bi bi-activity me-2"></i>Recent Activity</h3>
+                        <span class="badge bg-primary">Live</span>
+                    </div>
+
+                    <?php if ($recent_activities && $recent_activities->num_rows > 0): ?>
+                        <ul class="activity-list">
+                            <?php while ($activity = $recent_activities->fetch_assoc()): ?>
                                 <?php
                                     $img = '../uploads/noimg.png';
-                                    if (!empty($ojt['profile_img']) && file_exists('../' . $ojt['profile_img'])) {
-                                        $img = '../' . $ojt['profile_img'];
+                                    if (!empty($activity['profile_img']) && file_exists('../' . $activity['profile_img'])) {
+                                        $img = '../' . $activity['profile_img'];
                                     }
-                                    $time_in = $ojt['time_in'] ? date('g:i A', strtotime($ojt['time_in'])) : '<span class="text-muted">--</span>';
-                                    if ($ojt['time_out'] && $ojt['time_out'] !== '00:00:00') {
-                                        $time_out = date('g:i A', strtotime($ojt['time_out']));
-                                    } else {
-                                        $time_out = '<span class="text-muted">--</span>';
-                                    }
+                                    $time_ago = date('g:i A', strtotime($activity['time_in']));
+                                    $date_display = date('M d', strtotime($activity['date']));
                                 ?>
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center gap-3">
-                                            <img src="<?= htmlspecialchars($img) ?>" alt="<?= htmlspecialchars(trim($ojt['fname'].' '.$ojt['lname'])) ?>" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid #e6f4ea;">
-                                            <div>
-                                                <div style="font-weight:700;color:#14532d;"><?= htmlspecialchars($ojt['fname'].' '.$ojt['lname']) ?></div>
-                                                <div class="text-muted" style="font-size:0.9rem;"><?= htmlspecialchars($ojt['username']) ?></div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="text-muted">@<?= htmlspecialchars($ojt['username']) ?></td>
-                                    <td style="color:#14532d;font-weight:600;"><?= $time_in ?></td>
-                                    <td style="color:#14532d;font-weight:600;"><?= $time_out ?></td>
-                                    <td>
-                                        <a href="dtrview.php?user_id=<?= urlencode($ojt['id']) ?>" class="btn btn-sm btn-outline-success">
-                                            View DTR
-                                        </a>
-                                    </td>
-                                </tr>
+                                <li class="activity-item">
+                                    <img src="<?= htmlspecialchars($img) ?>" alt="" class="user-avatar">
+                                    <div class="activity-content">
+                                        <h6><?= htmlspecialchars($activity['fname'].' '.$activity['lname']) ?> clocked in</h6>
+                                        <small><i class="bi bi-clock me-1"></i><?= $time_ago ?> • <?= $date_display ?></small>
+                                    </div>
+                                    <div class="activity-icon">
+                                        <i class="bi bi-box-arrow-in-right"></i>
+                                    </div>
+                                </li>
                             <?php endwhile; ?>
-                        </tbody>
-                    </table>
+                        </ul>
+                        <div class="text-center mt-3">
+                            <a href="reports.php" class="btn btn-sm btn-outline-primary">
+                                View All Activities <i class="bi bi-arrow-right ms-1"></i>
+                            </a>
+                        </div>
+                    <?php else: ?>
+                        <div class="empty-state">
+                            <i class="bi bi-activity"></i>
+                            <h5>No Recent Activity</h5>
+                            <p>Activity will appear here once OJTs start clocking in.</p>
+                        </div>
+                    <?php endif; ?>
                 </div>
-            <?php else: ?>
-                <div class="text-center text-muted py-3">No OJT has clocked in today.</div>
-            <?php endif; ?>
+
+                <!-- System Info Card -->
+                <div class="card-custom">
+                    <div class="card-header-custom">
+                        <h3><i class="bi bi-info-circle me-2"></i>System Information</h3>
+                    </div>
+                    <div style="line-height: 2;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted"><i class="bi bi-calendar3 me-2"></i>Today's Date:</span>
+                            <strong><?= date('F d, Y') ?></strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted"><i class="bi bi-clock me-2"></i>Current Time:</span>
+                            <strong id="currentTime"><?= date('g:i:s A') ?></strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted"><i class="bi bi-check-circle me-2"></i>System Status:</span>
+                            <span class="badge bg-success">Operational</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted"><i class="bi bi-server me-2"></i>Database:</span>
+                            <span class="badge bg-success">Connected</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    <!-- Bootstrap 5 JS and icons -->
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script>
+        // Update current time
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: true 
+            });
+            document.getElementById('currentTime').textContent = timeString;
+        }
+        setInterval(updateTime, 1000);
+
+        // Attendance Chart
+        const ctx = document.getElementById('attendanceChart').getContext('2d');
+        const attendanceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: <?= json_encode($weekly_labels) ?>,
+                datasets: [{
+                    label: 'Daily Attendance',
+                    data: <?= json_encode($weekly_counts) ?>,
+                    borderColor: '#4c8eb1',
+                    backgroundColor: 'rgba(76, 142, 177, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#3cb2cc',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        borderColor: '#1e40af',
+                        borderWidth: 1
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        },
+                        grid: {
+                            color: '#e2e8f0'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    </script>
 </body>
 </html>

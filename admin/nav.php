@@ -1,293 +1,209 @@
 <?php
+
 if (session_status() === PHP_SESSION_NONE) session_start();
-
-// allow admin and super_admin
-if (!isset($_SESSION['user_id']) || !in_array(($_SESSION['role'] ?? ''), ['super_admin','admin'])) {
-    header("Location: ../login.php");
-    exit;
-}
-$user_id = $_SESSION['user_id'] ?? null;
-$fname = $_SESSION['fname'] ?? '';
-$lname = $_SESSION['lname'] ?? '';
-$role = $_SESSION['role'] ?? '';
-$position = '';
-$profile_img = '';
-
-
-$displayName = trim(($_SESSION['fname'] ?? '') . ' ' . ($_SESSION['lname'] ?? '')) ?: ($_SESSION['username'] ?? 'Admin');
-$avatar = $_SESSION['avatar'] ?? '../assets/admin-avatar.png';
-$currentPage = basename($_SERVER['PHP_SELF']);
-
-if ($user_id) {
-    $user = $oat->query("SELECT profile_img, position FROM users WHERE id = $user_id")->fetch_assoc();
-    if (!empty($user['profile_img'])) {
-        $profile_img = $user['profile_img'] . '?t=' . time();
-    } else {
-        // Fallback avatar
-        $profile_img = 'https://ui-avatars.com/api/?name=' . urlencode(trim("$fname $lname")) . '&background=3CB3CC&color=fff';
-    }
-    $position = $user['position'] ?? '';
-}
+$avatar = $_SESSION['avatar'] ?? 'uploads/noimg.png';
+$current = basename($_SERVER['PHP_SELF'] ?? '');
+function active($page, $current) { return $page === $current ? 'active' : ''; }
 ?>
+<!-- restore collapsed state early to avoid flicker -->
+<script>
+(function(){
+  try {
+    if (localStorage.getItem('sidebarCollapsed') === '1') document.documentElement.classList.add('sb-collapsed');
+    document.documentElement.classList.add('no-transitions');
+  } catch(e){}
+})();
+</script>
 
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
 
+<style>
+:root{ --sb-w:220px; --sb-cw:72px; }
 
+/* Desktop: fixed sidebar and push page content by padding on body */
+#sb-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: var(--sb-w);
+  z-index: 1040;
+  transition: transform .22s ease, width .18s ease;
+}
 
-?>
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+/* Push content so it doesn't go under the sidebar (no need for pageContent margin) */
+body {
+  padding-left: var(--sb-w);
+  transition: padding-left .18s ease;
     
-    <style>
-        /* Modern sidebar design using only Bootstrap utilities and minimal custom CSS */
-        .sidebar-wrapper {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100vh;
-            width: 280px;
-            background: linear-gradient(180deg, #1e3a5f 0%, #2c5282 100%);
-            box-shadow: 4px 0 12px rgba(0,0,0,0.1);
-            z-index: 1050;
-            overflow-y: auto;
-            transition: transform 0.3s ease-in-out;
-        }
-        
-        .sidebar-wrapper.collapsed {
-            transform: translateX(-280px);
-        }
-        
-        .main-content {
-            margin-left: 280px;
-            transition: margin-left 0.3s ease-in-out;
-        }
-        
-        .main-content.expanded {
-            margin-left: 0;
-        }
-        
-        .sidebar-header {
-            background: rgba(255,255,255,0.05);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .sidebar-nav .nav-link {
-            color: rgba(255,255,255,0.85);
-            border-radius: 0.5rem;
-            margin: 0.25rem 0.75rem;
-            padding: 0.75rem 1rem;
-            transition: all 0.2s ease;
-        }
-        
-        .sidebar-nav .nav-link:hover {
-            background: rgba(255,255,255,0.1);
-            color: #fff;
-            transform: translateX(4px);
-        }
-        
-        .sidebar-nav .nav-link.active {
-            background: rgba(255,255,255,0.15);
-            color: #fff;
-            font-weight: 600;
-        }
-        
-        .sidebar-nav .nav-link i {
-            width: 24px;
-            font-size: 1.1rem;
-        }
-        
-        .section-divider {
-            color: rgba(255,255,255,0.5);
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 0.5rem 1.25rem;
-            margin-top: 1rem;
-        }
-        
-        .sidebar-footer {
-            border-top: 1px solid rgba(255,255,255,0.1);
-            background: rgba(0,0,0,0.1);
-        }
-        
-        .toggle-sidebar {
-            position: fixed;
-            top: 1rem;
-            left: 290px;
-            z-index: 1049;
-            background: #2c5282;
-            border: none;
-            color: white;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            transition: all 0.3s ease;
-        }
-        
-        .toggle-sidebar:hover {
-            background: #1e3a5f;
-            transform: scale(1.1);
-        }
-        
-        .toggle-sidebar.collapsed {
-            left: 10px;
-        }
-        
-        .navbar-top {
-            background: white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            margin-left: 280px;
-            transition: margin-left 0.3s ease-in-out;
-        }
-        
-        .navbar-top.expanded {
-            margin-left: 0;
-        }
-        
-        @media (max-width: 991.98px) {
-            .sidebar-wrapper {
-                transform: translateX(-280px);
-            }
-            
-            .sidebar-wrapper.show {
-                transform: translateX(0);
-            }
-            
-            .main-content, .navbar-top {
-                margin-left: 0 !important;
-            }
-            
-            .toggle-sidebar {
-                left: 10px;
-            }
-        }
-        
-        /* Smooth scroll */
-        .sidebar-wrapper::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        .sidebar-wrapper::-webkit-scrollbar-track {
-            background: rgba(0,0,0,0.1);
-        }
-        
-        .sidebar-wrapper::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.3);
-            border-radius: 3px;
-        }
-        
-        .sidebar-wrapper::-webkit-scrollbar-thumb:hover {
-            background: rgba(255,255,255,0.5);
-        }
-    </style>
-</head>
-<body class="bg-light">
+}
+#pageContent { margin-left: 0; }
 
-<!-- Toggle Button (visible only on mobile view) -->
-<button class="toggle-sidebar btn btn-primary d-md-none d-flex align-items-center justify-content-center" id="sidebarToggle" type="button" aria-label="Toggle Sidebar">
-    <i class="bi bi-list"></i>
-</button>
+/* Collapsed state: reduce the body padding to collapsed width */
+html.sb-collapsed body {
+  padding-left: var(--sb-cw);
+}
 
-<!-- Sidebar -->
-<div class="sidebar-wrapper" id="sidebar">
-    <!-- Sidebar Header -->
-    <div class="sidebar-header p-3 d-flex align-items-center gap-3">
-        <img src="../<?= htmlspecialchars($profile_img) ?>" alt="Admin Avatar" class="rounded-circle" width="56" height="56" style="object-fit: cover; border: 2px solid rgba(255,255,255,0.3);">
-     
-        <div class="flex-grow-1">
-            <h6 class="text-white mb-0 fw-bold"><?php echo htmlspecialchars($displayName); ?></h6>
-            <small class="text-white-50">Administrator</small>
-        </div>
+/* Mobile: remove left padding and use offcanvas-like show/hide for sidebar */
+@media (max-width: 991.98px) {
+  body { padding-left: 0 !important; }
+  #sb-sidebar { transform: translateX(-110%); }
+  #sb-sidebar.show { transform: translateX(0); }
+}
+</style>
+
+<style>
+/* minimal CSS only for collapsed behavior + small niceties */
+#sb-sidebar{ position:fixed; top:0; left:0; height:100vh; width:var(--sb-w); padding:1rem; background:#fff; border-right:1px solid rgba(0,0,0,.04); box-shadow:0 8px 24px rgba(10,10,10,.04); transition:width .18s ease; z-index:1040; overflow:hidden; }
+html.sb-collapsed #sb-sidebar{ width:var(--sb-cw); }
+#pageContent{ margin-left:calc(var(--sb-w) + 16px); transition:margin-left .18s ease; padding:1.25rem; }
+html.sb-collapsed #pageContent{ margin-left:calc(var(--sb-cw) + 16px); }
+
+/* hide transitions during early restore */
+html.no-transitions #sb-sidebar, html.no-transitions #pageContent{ transition:none !important; }
+
+/* icon badge */
+.sb-icon { width:36px; height:36px; display:grid; place-items:center; border-radius:.6rem; background:#f1f5f9; color:#0f172a; flex:0 0 36px; }
+
+/* collapsed: hide labels smoothly */
+.nav-label{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:opacity .12s ease, max-width .18s ease; max-width:160px; opacity:1; }
+html.sb-collapsed .nav-label{ max-width:0; opacity:0; }
+
+/* enhance active and hover */
+.nav-link.active{ background:linear-gradient(90deg, rgba(6,182,212,.08), rgba(16,185,129,.04)); box-shadow: inset 3px 0 0 #06b6d4; color:#042022; font-weight:600; border-radius:.5rem; }
+.nav-link:hover{ transform: translateX(4px); transition: transform .12s ease; }
+
+/* nav container scroll */
+.sb-nav{ overflow-y:auto; max-height:calc(100vh - 220px); scrollbar-width:none; -ms-overflow-style:none; }
+.sb-nav::-webkit-scrollbar{ display:none; }
+
+/* actions keep icon-visible on collapse */
+.sb-actions .label{ transition:opacity .12s ease, max-width .18s ease; }
+html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
+</style>
+
+<nav id="sb-sidebar" class="d-none d-lg-flex flex-column" aria-label="Sidebar">
+  <div class="d-flex align-items-center mb-2">
+    <!-- show collapse toggle only on mobile -->
+    <button id="sbToggleBtn" class="btn btn-sm btn-outline-secondary d-lg-none" aria-label="Toggle sidebar" aria-pressed="false"><i class="bi bi-list"></i></button>
+  </div>
+
+  <!-- restore profile link (avatar + name) -->
+  <a href="adminprofileedit.php" class="d-flex align-items-center text-decoration-none mb-3">
+    <img src="../<?php echo htmlspecialchars($avatar); ?>" alt="avatar" class="rounded me-2" style="width:44px;height:44px;object-fit:cover">
+    <div class="d-flex flex-column">
+      <span class="fw-semibold"><?php echo htmlspecialchars(($_SESSION['fname'] ?? '') . ' ' . ($_SESSION['lname'] ?? '')); ?></span>
+      <small class="text-muted">Administrator</small>
+    </div>
+  </a>
+
+  <div class="sb-nav nav flex-column gap-1" role="menu">
+    <a class="nav-link d-flex align-items-center <?php echo active('admin.php',$current); ?>" href="admin.php" title="Dashboard" data-bs-toggle="tooltip" data-bs-placement="right">
+      <div class="sb-icon"><i class="bi bi-speedometer2"></i></div>
+      <div class="nav-label ms-2">Dashboard</div>
+    </a>
+
+    <a class="nav-link d-flex align-items-center <?php echo active('manageojt.php',$current); ?>" href="manageojt.php" title="Manage OJT" data-bs-toggle="tooltip" data-bs-placement="right">
+      <div class="sb-icon"><i class="bi bi-people"></i></div>
+      <div class="nav-label ms-2">Manage OJT</div>
+    </a>
+
+    <a class="nav-link d-flex align-items-center <?php echo active('activeojt.php',$current); ?>" href="activeojt.php" title="Active OJT" data-bs-toggle="tooltip" data-bs-placement="right">
+      <div class="sb-icon"><i class="bi bi-person-check"></i></div>
+      <div class="nav-label ms-2">Active OJT</div>
+    </a>
+
+    <a class="nav-link d-flex align-items-center <?php echo active('otreports.php',$current); ?>" href="otreports.php" title="OT Reports" data-bs-toggle="tooltip" data-bs-placement="right">
+      <div class="sb-icon"><i class="bi bi-journal-text"></i></div>
+      <div class="nav-label ms-2">OT Reports</div>
+    </a>
+
+    <a class="nav-link d-flex align-items-center <?php echo active('dtruserview.php',$current); ?>" href="dtruserview.php" title="DTR View" data-bs-toggle="tooltip" data-bs-placement="right">
+      <div class="sb-icon"><i class="bi bi-clock-history"></i></div>
+      <div class="nav-label ms-2">DTR View</div>
+    </a>
+
+    <a class="nav-link d-flex align-items-center <?php echo active('sitesettings.php',$current); ?>" href="sitesettings.php" title="Site Settings" data-bs-toggle="tooltip" data-bs-placement="right">
+      <div class="sb-icon"><i class="bi bi-gear"></i></div>
+      <div class="nav-label ms-2">Site Settings</div>
+    </a>
+
+    <a class="nav-link d-flex align-items-center <?php echo active('qr_generator.php',$current); ?>" href="qr_generator.php" title="QR Generator" data-bs-toggle="tooltip" data-bs-placement="right">
+      <div class="sb-icon"><i class="bi bi-upc-scan"></i></div>
+      <div class="nav-label ms-2">QR Generator</div>
+    </a>
+  </div>
+
+  <div class="sb-actions d-flex gap-2 mt-auto">
+  
+    <a href="../logout.php" class="btn btn-danger d-flex align-items-center justify-content-center" title="Logout" data-bs-toggle="tooltip" data-bs-placement="right">
+      <i class="bi bi-box-arrow-right"></i>
+      <span class="label ms-2">Logout</span>
+    </a>
+  </div>
+</nav>
+
+<!-- mobile offcanvas -->
+<button id="mobileSidebarToggler" class="btn btn-outline-secondary d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar" aria-controls="mobileSidebar" aria-label="Open menu"><i class="bi bi-list"></i></button>
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="mobileSidebar" aria-labelledby="mobileSidebarLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="mobileSidebarLabel">Menu</h5>
+    <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <a href="adminprofileedit.php" class="d-flex align-items-center mb-3 text-decoration-none">
+      <img src="../<?php echo htmlspecialchars($avatar); ?>" class="rounded me-2" style="width:44px;height:44px;object-fit:cover" alt="avatar">
+      <div>
+        <div class="fw-semibold"><?php echo htmlspecialchars(($_SESSION['fname'] ?? '') . ' ' . ($_SESSION['lname'] ?? '')); ?></div>
+        <div class="text-muted" style="font-size:.82rem">Administrator</div>
+      </div>
+    </a>
+
+    <div class="list-group">
+      <a class="list-group-item list-group-item-action <?php echo active('admin.php',$current); ?>" href="admin.php">Dashboard</a>
+      <a class="list-group-item list-group-item-action <?php echo active('manageojt.php',$current); ?>" href="manageojt.php">Manage OJT</a>
+      <a class="list-group-item list-group-item-action <?php echo active('activeojt.php',$current); ?>" href="activeojt.php">Active OJT</a>
+      <a class="list-group-item list-group-item-action <?php echo active('otreports.php',$current); ?>" href="otreports.php">OT Reports</a>
+      <a class="list-group-item list-group-item-action <?php echo active('dtruserview.php',$current); ?>" href="dtruserview.php">DTR View</a>
+      <a class="list-group-item list-group-item-action <?php echo active('sitesettings.php',$current); ?>" href="sitesettings.php">Site Settings</a>
+      <a class="list-group-item list-group-item-action <?php echo active('qr_generator.php',$current); ?>" href="qr_generator.php">QR Generator</a>
     </div>
 
-    <!-- Navigation -->
-    <nav class="sidebar-nav py-3">
-        <a href="admin.php" class="nav-link d-flex align-items-center gap-3 <?php echo $currentPage === 'admin.php' ? 'active' : ''; ?>" data-page="admin.php">
-            <i class="bi bi-speedometer2"></i>
-            <span>Dashboard</span>
-        </a>
-        
-        <a href="qr_generator.php" class="nav-link d-flex align-items-center gap-3 <?php echo $currentPage === 'qr_generator.php' ? 'active' : ''; ?>" data-page="qr_generator.php">
-            <i class="bi bi-qr-code"></i>
-            <span>QR Time</span>
-        </a>
-        
-        <a href="manageojt.php" class="nav-link d-flex align-items-center gap-3 <?php echo $currentPage === 'manageojt.php' ? 'active' : ''; ?>" data-page="manageojt.php">
-            <i class="bi bi-people"></i>
-            <span>Manage OJT</span>
-        </a>
-        
-        <a href="activeojt.php" class="nav-link d-flex align-items-center gap-3 <?php echo $currentPage === 'activeojt.php' ? 'active' : ''; ?>" data-page="activeojt.php">
-            <i class="bi bi-person-check"></i>
-            <span>Active OJT</span>
-        </a>
-        
-        <a href="otreports.php" class="nav-link d-flex align-items-center gap-3 <?php echo $currentPage === 'otreports.php' ? 'active' : ''; ?>" data-page="otreports.php">
-            <i class="bi bi-file-text"></i>
-            <span>OT Reports</span>
-        </a>
-
-        <div class="section-divider">Reports & Settings</div>
-        
-       
-        
-        <a href="dtruserview.php" class="nav-link d-flex align-items-center gap-3 <?php echo $currentPage === 'dtrview.php' ? 'active' : ''; ?>" data-page="dtrview.php">
-            <i class="bi bi-calendar-event"></i>
-            <span>DTR View</span>
-        </a>
-        
-        <a href="sitesettings.php" class="nav-link d-flex align-items-center gap-3 <?php echo $currentPage === 'sitesettings.php' ? 'active' : ''; ?>" data-page="sitesettings.php">
-            <i class="bi bi-gear"></i>
-            <span>Site Settings</span>
-        </a>
-
-        <div class="section-divider">Profile</div>
-        
-        <a href="adminprofileedit.php" class="nav-link d-flex align-items-center gap-3 <?php echo $currentPage === 'adminprofileedit.php' ? 'active' : ''; ?>" data-page="adminprofileedit.php">
-            <i class="bi bi-pencil-square"></i>
-            <span>Edit Profile</span>
-        </a>
-    </nav>
-
-    <!-- Sidebar Footer -->
-    <div class="sidebar-footer p-3 mt-auto">
-        <div class="d-flex justify-content-between align-items-center">
-            <small class="text-white-50">Signed in</small>
-            <a href="../logout.php" class="btn btn-sm btn-danger">
-                <i class="bi bi-box-arrow-right me-1"></i> Logout
-            </a>
-        </div>
+    <div class="mt-3 d-flex gap-2">
+      <a href="../logout.php" class="btn btn-danger flex-fill">Logout</a>
     </div>
+  </div>
 </div>
 
-<!-- Top Navbar (Mobile) -->
-
-
-<!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
 <script>
-// Sidebar toggle functionality
-(function() {
-    const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.getElementById('sidebarToggle');
-    const mainContent = document.querySelector('.main-content');
-    const topNav = document.getElementById('topNav');
+document.addEventListener('DOMContentLoaded', function () {
+  const root = document.documentElement;
 
-    toggleBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('collapsed');
-        sidebar.classList.toggle('show'); // For mobile
-        mainContent.classList.toggle('expanded');
-        topNav.classList.toggle('expanded');
+  // finish early-restore lock (inline early script applies sb-collapsed / no-transitions)
+  requestAnimationFrame(()=> root.classList.remove('no-transitions'));
+
+  // ensure collapsed sync on load (already applied early, keep consistent)
+  if (localStorage.getItem('sidebarCollapsed') === '1') root.classList.add('sb-collapsed');
+
+  // desktop collapse toggle (keeps body padding in sync via CSS)
+  const sbToggle = document.getElementById('sbToggleBtn');
+  if (sbToggle) {
+    sbToggle.addEventListener('click', () => {
+      const collapsed = root.classList.toggle('sb-collapsed');
+      localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+      sbToggle.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
     });
-})();
+  }
+
+  // mobile toggler to show/hide sidebar (applies CSS .show class)
+  const mobileToggler = document.getElementById('mobileSidebarToggler') || document.getElementById('mobileOpen');
+  if (mobileToggler) {
+    mobileToggler.addEventListener('click', () => {
+      document.getElementById('sb-sidebar').classList.toggle('show');
+    });
+  }
+});
 </script>
