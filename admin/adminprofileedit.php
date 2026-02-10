@@ -1,14 +1,10 @@
 <?php
 
+
 include '../db.php';
 include 'nav.php';
-
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-// Check if the user is logged in and is an admin
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin') {
+if (session_status() === PHP_SESSION_NONE) session_start();
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['admin', 'super_admin'])) {
     header("Location: ../login.php");
     exit;
 }
@@ -29,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = trim($_POST['password'] ?? '');
     $confirm_password = trim($_POST['confirm_password'] ?? '');
-    $profile_img = $admin['profile_img']; // Default to the existing profile image
+    $profile_img = $admin['profile_img'];
 
     // Validate inputs
     if (empty($fname) || empty($lname) || empty($email)) {
@@ -52,20 +48,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0755, true);
         }
-
         $file_name = uniqid() . '_' . basename($_FILES['profile_img']['name']);
         $file_path = $upload_dir . $file_name;
-
-        // Validate file type and size
         $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
         if (!in_array($_FILES['profile_img']['type'], $allowed_types)) {
             $errors[] = 'Only JPEG, PNG, and GIF files are allowed.';
-        } elseif ($_FILES['profile_img']['size'] > 2 * 1024 * 1024) { // 2MB limit
+        } elseif ($_FILES['profile_img']['size'] > 2 * 1024 * 1024) {
             $errors[] = 'Profile image must be less than 2MB.';
         } else {
-            // Move the uploaded file
             if (move_uploaded_file($_FILES['profile_img']['tmp_name'], $file_path)) {
-                $profile_img = 'uploads/profile_images/' . $file_name; // Save relative path
+                $profile_img = 'uploads/profile_images/' . $file_name;
             } else {
                 $errors[] = 'Failed to upload profile image.';
             }
@@ -75,26 +67,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // If no errors, update the admin profile
     if (empty($errors)) {
         if (!empty($password)) {
-            // Update with password
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $oat->prepare("UPDATE users SET fname = ?, lname = ?, email = ?, password = ?, profile_img = ? WHERE id = ?");
             $stmt->bind_param("sssssi", $fname, $lname, $email, $hashed_password, $profile_img, $admin_id);
         } else {
-            // Update without password
             $stmt = $oat->prepare("UPDATE users SET fname = ?, lname = ?, email = ?, profile_img = ? WHERE id = ?");
             $stmt->bind_param("ssssi", $fname, $lname, $email, $profile_img, $admin_id);
         }
-
         if ($stmt->execute()) {
             $success = 'Profile updated successfully.';
-            // Refresh admin details
             $admin['fname'] = $fname;
             $admin['lname'] = $lname;
             $admin['email'] = $email;
             $admin['profile_img'] = $profile_img;
             $_SESSION['fname'] = $fname;
             $_SESSION['lname'] = $lname;
-            $_SESSION['avatar'] = $profile_img; // Update session avatar
+            $_SESSION['avatar'] = $profile_img;
         } else {
             $errors[] = 'Failed to update profile. Please try again.';
         }
@@ -108,55 +96,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Admin Profile</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f6fcfe 0%, #e3f6fa 60%, #d2f1f7 100%);
+            min-height: 100vh;
+        }
+        .profile-edit-container {
+            max-width: 500px;
+            margin: 3rem auto;
+            padding: 2rem;
+            background: rgba(60, 178, 204, 0.09);
+            border-radius: 18px;
+            box-shadow: 0 10px 30px 0 rgba(60,178,204,0.08);
+            backdrop-filter: blur(6px) saturate(120%);
+        }
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .profile-header img {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #e2e8f0;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #4c8eb1;
+        }
+        .btn-primary {
+            background: #4c8eb1;
+            border: none;
+        }
+        .btn-primary:hover {
+            background: #3cb2cc;
+        }
+        .alert ul {
+            margin-bottom: 0;
+        }
+    </style>
 </head>
 <body>
-<div class="container mt-5">
-    <h2>Edit Profile</h2>
+<div class="profile-edit-container">
+    <div class="profile-header">
+        <img src="../<?= htmlspecialchars($admin['profile_img'] ?: 'uploads/noimg.png') ?>?t=<?= time() ?>" alt="Profile Image">
+        <div>
+            <h4 class="mb-0"><?= htmlspecialchars($admin['fname'] . ' ' . $admin['lname']) ?></h4>
+            <small class="text-muted"><?= htmlspecialchars($admin['email']) ?></small>
+        </div>
+    </div>
     <?php if (!empty($errors)): ?>
         <div class="alert alert-danger">
             <ul>
                 <?php foreach ($errors as $error): ?>
-                    <li><?php echo htmlspecialchars($error); ?></li>
+                    <li><?= htmlspecialchars($error) ?></li>
                 <?php endforeach; ?>
             </ul>
         </div>
     <?php endif; ?>
     <?php if (!empty($success)): ?>
         <div class="alert alert-success">
-            <?php echo htmlspecialchars($success); ?>
+            <?= htmlspecialchars($success) ?>
         </div>
     <?php endif; ?>
     <form method="POST" action="" enctype="multipart/form-data">
         <div class="mb-3">
             <label for="fname" class="form-label">First Name</label>
-            <input type="text" class="form-control" id="fname" name="fname" value="<?php echo htmlspecialchars($admin['fname']); ?>" required>
+            <input type="text" class="form-control" id="fname" name="fname" value="<?= htmlspecialchars($admin['fname']) ?>" required>
         </div>
         <div class="mb-3">
             <label for="lname" class="form-label">Last Name</label>
-            <input type="text" class="form-control" id="lname" name="lname" value="<?php echo htmlspecialchars($admin['lname']); ?>" required>
+            <input type="text" class="form-control" id="lname" name="lname" value="<?= htmlspecialchars($admin['lname']) ?>" required>
         </div>
         <div class="mb-3">
             <label for="email" class="form-label">Email</label>
-            <input type="email" class="form-control" id="email" name="email" value="<?php echo htmlspecialchars($admin['email']); ?>" required>
+            <input type="email" class="form-control" id="email" name="email" value="<?= htmlspecialchars($admin['email']) ?>" required>
         </div>
         <div class="mb-3">
             <label for="profile_img" class="form-label">Profile Image</label>
-            <?php if (!empty($admin['profile_img'])): ?>
-                <div class="mb-2">
-                    <img src="../<?php echo htmlspecialchars($admin['profile_img']); ?>" alt="Profile Image" class="img-thumbnail" width="150">
-                </div>
-            <?php endif; ?>
             <input type="file" class="form-control" id="profile_img" name="profile_img" accept="image/*">
         </div>
         <div class="mb-3">
             <label for="password" class="form-label">New Password</label>
-            <input type="password" class="form-control" id="password" name="password">
+            <input type="password" class="form-control" id="password" name="password" placeholder="Leave blank to keep current password">
         </div>
         <div class="mb-3">
             <label for="confirm_password" class="form-label">Confirm Password</label>
-            <input type="password" class="form-control" id="confirm_password" name="confirm_password">
+            <input type="password" class="form-control" id="confirm_password" name="confirm_password" placeholder="Leave blank to keep current password">
         </div>
-        <button type="submit" class="btn btn-primary">Update Profile</button>
+        <button type="submit" class="btn btn-primary w-100">Update Profile</button>
     </form>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

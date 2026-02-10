@@ -7,8 +7,12 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'supe
     exit;
 }
 
-// Fetch all OJT users (add mname)
-$ojts = $oat->query("SELECT id, username, fname, mname, lname, email, bio, profile_img, position, adviser_id FROM users WHERE role = 'ojt' ORDER BY lname, fname");
+if ($_SESSION['role'] === 'super_admin') {
+    $ojts = $oat->query("SELECT id, username, fname, mname, lname, email, bio, profile_img, position, adviser_id FROM users WHERE role = 'ojt' ORDER BY lname, fname");
+} else {
+    $admin_id = (int)$_SESSION['user_id'];
+    $ojts = $oat->query("SELECT id, username, fname, mname, lname, email, bio, profile_img, position, adviser_id FROM users WHERE role = 'ojt' AND (adviser_id = $admin_id OR adviser_id IS NULL OR adviser_id = '') ORDER BY lname, fname");
+}
 
 // Fetch all potential trainers (admins and advisers)
 $trainers = $oat->query("SELECT id, fname, lname FROM users WHERE role IN ('admin', 'super_admin') ORDER BY lname, fname");

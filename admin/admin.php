@@ -5,25 +5,65 @@ include 'nav.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin') {
+// Allow both super_admin and admin to access
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['super_admin', 'admin'])) {
     header("Location: ../login.php");
     exit;
 }
 
+$admin_id = (int)($_SESSION['user_id'] ?? 0);
+
 // Get statistics
-$ojt_count = $oat->query("SELECT COUNT(*) as c FROM users WHERE role='ojt'")->fetch_assoc()['c'] ?? 0;
-$admin_count = $oat->query("SELECT COUNT(*) as c FROM users WHERE role='admin'")->fetch_assoc()['c'] ?? 0;
-$active_today = $oat->query("SELECT COUNT(DISTINCT user_id) as c FROM ojt_records WHERE date = CURDATE()")->fetch_assoc()['c'] ?? 0;
-$pending = $oat->query("SELECT COUNT(*) as c FROM ojt_records WHERE date = CURDATE() AND (time_out IS NULL OR time_out = '' OR time_out = '00:00:00') AND time_in IS NOT NULL AND time_in != ''")->fetch_assoc()['c'] ?? 0;
+if ($_SESSION['role'] === 'super_admin') {
+    $ojt_count = $oat->query("SELECT COUNT(*) as c FROM users WHERE role='ojt'")->fetch_assoc()['c'] ?? 0;
+    $admin_count = $oat->query("SELECT COUNT(*) as c FROM users WHERE role='admin'")->fetch_assoc()['c'] ?? 0;
+    $active_today = $oat->query("SELECT COUNT(DISTINCT user_id) as c FROM ojt_records WHERE date = CURDATE()")->fetch_assoc()['c'] ?? 0;
+    $pending = $oat->query("SELECT COUNT(*) as c FROM ojt_records WHERE date = CURDATE() AND (time_out IS NULL OR time_out = '' OR time_out = '00:00:00') AND time_in IS NOT NULL AND time_in != ''")->fetch_assoc()['c'] ?? 0;
+} else {
+    // Only OJTs under this admin or without adviser
+    $ojt_count = $oat->query("SELECT COUNT(*) as c FROM users WHERE role='ojt' AND (adviser_id = $admin_id OR adviser_id IS NULL OR adviser_id = '')")->fetch_assoc()['c'] ?? 0;
+    $admin_count = 1; // Only self
+    $active_today = $oat->query("
+        SELECT COUNT(DISTINCT r.user_id) as c
+        FROM ojt_records r
+        JOIN users u ON r.user_id = u.id
+        WHERE u.role='ojt'
+          AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
+          AND r.date = CURDATE()
+    ")->fetch_assoc()['c'] ?? 0;
+    $pending = $oat->query("
+        SELECT COUNT(*) as c
+        FROM ojt_records r
+        JOIN users u ON r.user_id = u.id
+        WHERE u.role='ojt'
+          AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
+          AND r.date = CURDATE()
+          AND (r.time_out IS NULL OR r.time_out = '' OR r.time_out = '00:00:00')
+          AND r.time_in IS NOT NULL AND r.time_in != ''
+    ")->fetch_assoc()['c'] ?? 0;
+}
 
 // Get weekly attendance trend
-$weekly_data = $oat->query("
-    SELECT DATE(date) as day, COUNT(DISTINCT user_id) as count 
-    FROM ojt_records 
-    WHERE date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-    GROUP BY DATE(date)
-    ORDER BY day ASC
-");
+if ($_SESSION['role'] === 'super_admin') {
+    $weekly_data = $oat->query("
+        SELECT DATE(date) as day, COUNT(DISTINCT user_id) as count 
+        FROM ojt_records 
+        WHERE date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+        GROUP BY DATE(date)
+        ORDER BY day ASC
+    ");
+} else {
+    $weekly_data = $oat->query("
+        SELECT DATE(r.date) as day, COUNT(DISTINCT r.user_id) as count
+        FROM ojt_records r
+        JOIN users u ON r.user_id = u.id
+        WHERE u.role='ojt'
+          AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
+          AND r.date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+        GROUP BY DATE(r.date)
+        ORDER BY day ASC
+    ");
+}
 $weekly_labels = [];
 $weekly_counts = [];
 while($row = $weekly_data->fetch_assoc()) {
@@ -32,14 +72,27 @@ while($row = $weekly_data->fetch_assoc()) {
 }
 
 // Get recent activities
-$recent_activities = $oat->query("
-    SELECT u.fname, u.lname, u.profile_img, r.time_in, r.date, 'time_in' as action
-    FROM ojt_records r
-    JOIN users u ON r.user_id = u.id
-    WHERE r.time_in IS NOT NULL
-    ORDER BY r.date DESC, r.time_in DESC
-    LIMIT 5
-");
+if ($_SESSION['role'] === 'super_admin') {
+    $recent_activities = $oat->query("
+        SELECT u.fname, u.mname, u.lname, u.profile_img, r.time_in, r.date, 'time_in' as action
+        FROM ojt_records r
+        JOIN users u ON r.user_id = u.id
+        WHERE r.time_in IS NOT NULL
+        ORDER BY r.date DESC, r.time_in DESC
+        LIMIT 5
+    ");
+} else {
+    $recent_activities = $oat->query("
+        SELECT u.fname, u.mname, u.lname, u.profile_img, r.time_in, r.date, 'time_in' as action
+        FROM ojt_records r
+        JOIN users u ON r.user_id = u.id
+        WHERE r.time_in IS NOT NULL
+          AND u.role='ojt'
+          AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
+        ORDER BY r.date DESC, r.time_in DESC
+        LIMIT 5
+    ");
+}
 ?>
 
 <!DOCTYPE html>
@@ -534,8 +587,8 @@ $recent_activities = $oat->query("
                 <div class="stat-value"><?= $pending ?></div>
                 <div class="stat-label">Pending Time-Out</div>
                 <span class="stat-change <?= $pending > 0 ? 'negative' : 'positive' ?>">
-                    <i class="bi bi-<?= $pending > 0 ? 'exclamation-circle' : 'check-circle' ?>"></i> 
-                    <?= $pending > 0 ? 'Needs Attention' : 'All Clear' ?>
+                    <i class="bi bi-<?= $pending > 0 ? 'check-circle' : 'check-circle' ?>"></i> 
+                    <?= $pending > 0 ? 'Active OJT' : 'All Clear' ?>
                 </span>
             </div>
 
@@ -592,7 +645,7 @@ $recent_activities = $oat->query("
 
                     <?php
                     $active_ojts = $oat->query("
-                        SELECT u.id, u.username, u.fname, u.lname, u.email, u.profile_img, 
+                        SELECT u.id, u.username, u.fname, u.mname, u.lname, u.email, u.profile_img, 
                                r.time_in, r.time_out
                         FROM users u
                         JOIN ojt_records r ON u.id = r.user_id
@@ -624,15 +677,19 @@ $recent_activities = $oat->query("
                                             $time_in = date('g:i A', strtotime($ojt['time_in']));
                                             $has_timeout = $ojt['time_out'] && $ojt['time_out'] !== '00:00:00';
                                             $time_out = $has_timeout ? date('g:i A', strtotime($ojt['time_out'])) : '--';
+                                            // Show: Firstname M. Lastname (if mname exists)
+                                            $mname = trim($ojt['mname']);
+                                            $middle = $mname ? strtoupper($mname[0]) . '.' : '';
+                                            $fullname = htmlspecialchars($ojt['fname'] . ' ' . ($middle ? $middle . ' ' : '') . $ojt['lname']);
                                         ?>
                                         <tr>
                                             <td>
                                                 <div class="user-info">
                                                     <img src="<?= htmlspecialchars($img) ?>" 
-                                                         alt="<?= htmlspecialchars($ojt['fname'].' '.$ojt['lname']) ?>" 
+                                                         alt="<?= $fullname ?>" 
                                                          class="user-avatar">
                                                     <div class="user-details">
-                                                        <h6><?= htmlspecialchars($ojt['fname'].' '.$ojt['lname']) ?></h6>
+                                                        <h6><?= $fullname ?></h6>
                                                         <small>@<?= htmlspecialchars($ojt['username']) ?></small>
                                                     </div>
                                                 </div>
@@ -694,11 +751,15 @@ $recent_activities = $oat->query("
                                     }
                                     $time_ago = date('g:i A', strtotime($activity['time_in']));
                                     $date_display = date('M d', strtotime($activity['date']));
+                                    // Show: Firstname M. Lastname (if mname exists)
+                                    $mname = trim($activity['mname']);
+                                    $middle = $mname ? strtoupper($mname[0]) . '.' : '';
+                                    $fullname = htmlspecialchars($activity['fname'] . ' ' . ($middle ? $middle . ' ' : '') . $activity['lname']);
                                 ?>
                                 <li class="activity-item">
                                     <img src="<?= htmlspecialchars($img) ?>" alt="" class="user-avatar">
                                     <div class="activity-content">
-                                        <h6><?= htmlspecialchars($activity['fname'].' '.$activity['lname']) ?> clocked in</h6>
+                                        <h6><?= $fullname ?> clocked in</h6>
                                         <small><i class="bi bi-clock me-1"></i><?= $time_ago ?> • <?= $date_display ?></small>
                                     </div>
                                     <div class="activity-icon">

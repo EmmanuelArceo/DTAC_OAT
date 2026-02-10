@@ -18,7 +18,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['role'] = $user['role'];
             $_SESSION['full_name'] = $user['full_name'];
-            if ($user['role'] === 'super_admin') {
+            if (in_array($user['role'], ['super_admin', 'admin'])) {
                 header("Location: admin/admin.php");
             } else {
                 header("Location: dashboard.php");

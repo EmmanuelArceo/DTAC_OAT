@@ -1,10 +1,34 @@
 <?php
+
 if (!function_exists('active')) {
     function active($page, $current) { return $page === $current ? 'active' : ''; }
 }
 if (session_status() === PHP_SESSION_NONE) session_start();
-$avatar = $_SESSION['avatar'] ?? 'uploads/noimg.png';
+
 $current = basename($_SERVER['PHP_SELF'] ?? '');
+
+// Allow both admin and super_admin roles
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['admin', 'super_admin'])) {
+    header("Location: ../login.php");
+    exit;
+}
+
+// Avatar fallback and DB fetch
+$avatar = 'uploads/noimg.png';
+if (isset($_SESSION['avatar']) && $_SESSION['avatar'] && file_exists('../' . $_SESSION['avatar'])) {
+    $avatar = $_SESSION['avatar'];
+} else if (isset($_SESSION['user_id'])) {
+    // Fetch from DB if session avatar is missing
+    include_once '../db.php';
+    $admin_id = (int)$_SESSION['user_id'];
+    $result = $oat->query("SELECT profile_img FROM users WHERE id = $admin_id LIMIT 1");
+    if ($result && $row = $result->fetch_assoc()) {
+        if (!empty($row['profile_img']) && file_exists('../' . $row['profile_img'])) {
+            $avatar = $row['profile_img'];
+            $_SESSION['avatar'] = $avatar; // update session for future requests
+        }
+    }
+}
 ?>
 <!-- restore collapsed state early to avoid flicker -->
 <script>
@@ -81,7 +105,7 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
 <nav id="top-navbar" class="navbar navbar-expand-lg navbar-light bg-white shadow-sm px-2 py-2" style="z-index:1050;">
   <div class="container-fluid">
     <a class="navbar-brand d-flex align-items-center" href="adminprofileedit.php">
-      <img src="../<?php echo htmlspecialchars($avatar); ?>" alt="avatar" class="rounded me-2" style="width:36px;height:36px;object-fit:cover">
+      <img src="../<?php echo htmlspecialchars($avatar); ?>?t=<?php echo time(); ?>" alt="avatar" class="rounded me-2" style="width:36px;height:36px;object-fit:cover">
       <span class="fw-semibold"><?php echo htmlspecialchars(($_SESSION['fname'] ?? '') . ' ' . ($_SESSION['lname'] ?? '')); ?></span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar" aria-controls="mobileSidebar" aria-label="Open menu"><i class="bi bi-list"></i></button>
@@ -90,13 +114,11 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
 
 <nav id="sb-sidebar" class="d-none d-lg-flex flex-column" aria-label="Sidebar">
   <div class="d-flex align-items-center mb-2">
-    <!-- show collapse toggle only on mobile -->
     <button id="sbToggleBtn" class="btn btn-sm btn-outline-secondary d-lg-none" aria-label="Toggle sidebar" aria-pressed="false"><i class="bi bi-list"></i></button>
   </div>
 
-  <!-- restore profile link (avatar + name) -->
   <a href="adminprofileedit.php" class="d-flex align-items-center text-decoration-none mb-3">
-    <img src="../<?php echo htmlspecialchars($avatar); ?>" alt="avatar" class="rounded me-2" style="width:44px;height:44px;object-fit:cover">
+    <img src="../<?php echo htmlspecialchars($avatar); ?>?t=<?php echo time(); ?>" alt="avatar" class="rounded me-2" style="width:44px;height:44px;object-fit:cover">
     <div class="d-flex flex-column">
       <span class="fw-semibold"><?php echo htmlspecialchars(($_SESSION['fname'] ?? '') . ' ' . ($_SESSION['lname'] ?? '')); ?></span>
       <small class="text-muted">Administrator</small>
@@ -141,8 +163,7 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
   </div>
 
   <div class="sb-actions d-flex gap-2 mt-auto">
-  
-    <a href="../logout.php" class="btn btn-danger d-flex align-items-center justify-content-center" title="Logout" data-bs-toggle="tooltip" data-bs-placement="right">
+    <a href="logout.php" class="btn btn-danger d-flex align-items-center justify-content-center" title="Logout" data-bs-toggle="tooltip" data-bs-placement="right">
       <i class="bi bi-box-arrow-right"></i>
       <span class="label ms-2">Logout</span>
     </a>
@@ -150,10 +171,6 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
 </nav>
 
 <!-- mobile offcanvas -->
-<!--
-<button id="mobileSidebarToggler" class="btn btn-outline-secondary d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar" aria-controls="mobileSidebar" aria-label="Open menu"><i class="bi bi-list"></i></button>
--->
-
 <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileSidebar" aria-labelledby="mobileSidebarLabel">
   <div class="offcanvas-header">
     <h5 class="offcanvas-title" id="mobileSidebarLabel">Menu</h5>
@@ -161,7 +178,7 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
   </div>
   <div class="offcanvas-body">
     <a href="adminprofileedit.php" class="d-flex align-items-center mb-3 text-decoration-none">
-      <img src="../<?php echo htmlspecialchars($avatar); ?>" class="rounded me-2" style="width:44px;height:44px;object-fit:cover" alt="avatar">
+      <img src="../<?php echo htmlspecialchars($avatar); ?>?t=<?php echo time(); ?>" class="rounded me-2" style="width:44px;height:44px;object-fit:cover" alt="avatar">
       <div>
         <div class="fw-semibold"><?php echo htmlspecialchars(($_SESSION['fname'] ?? '') . ' ' . ($_SESSION['lname'] ?? '')); ?></div>
         <div class="text-muted" style="font-size:.82rem">Administrator</div>
@@ -188,28 +205,14 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const root = document.documentElement;
-
-  // finish early-restore lock (inline early script applies sb-collapsed / no-transitions)
   requestAnimationFrame(()=> root.classList.remove('no-transitions'));
-
-  // ensure collapsed sync on load (already applied early, keep consistent)
   if (localStorage.getItem('sidebarCollapsed') === '1') root.classList.add('sb-collapsed');
-
-  // desktop collapse toggle (keeps body padding in sync via CSS)
   const sbToggle = document.getElementById('sbToggleBtn');
   if (sbToggle) {
     sbToggle.addEventListener('click', () => {
       const collapsed = root.classList.toggle('sb-collapsed');
       localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
       sbToggle.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
-    });
-  }
-
-  // mobile toggler to show/hide sidebar (applies CSS .show class)
-  const mobileToggler = document.getElementById('mobileSidebarToggler') || document.getElementById('mobileOpen');
-  if (mobileToggler) {
-    mobileToggler.addEventListener('click', () => {
-      document.getElementById('sb-sidebar').classList.toggle('show');
     });
   }
 });

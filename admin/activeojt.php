@@ -8,7 +8,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin') {
+// Allow both admin and super_admin roles
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['super_admin', 'admin'])) {
     header("Location: ../login.php");
     exit;
 }
@@ -16,14 +17,27 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'super_admin')
 // Get today's date
 $today = date('Y-m-d');
 
-// Fetch all OJTs who have time_in for today
-$ojts = $oat->query("
-    SELECT u.id, u.username, u.fname, u.lname, u.profile_img, r.time_in, r.time_out, r.remarks
-    FROM users u
-    JOIN ojt_records r ON u.id = r.user_id
-    WHERE u.role = 'ojt' AND r.date = '$today' AND r.time_in IS NOT NULL AND r.time_in != ''
-    ORDER BY r.time_in ASC
-");
+// Only show OJTs managed by this admin, or all if super_admin
+if ($_SESSION['role'] === 'super_admin') {
+    $ojts = $oat->query("
+        SELECT u.id, u.username, u.fname, u.lname, u.profile_img, r.time_in, r.time_out, r.remarks
+        FROM users u
+        JOIN ojt_records r ON u.id = r.user_id
+        WHERE u.role = 'ojt' AND r.date = '$today' AND r.time_in IS NOT NULL AND r.time_in != ''
+        ORDER BY r.time_in ASC
+    ");
+} else {
+    $admin_id = (int)$_SESSION['user_id'];
+    $ojts = $oat->query("
+        SELECT u.id, u.username, u.fname, u.lname, u.profile_img, r.time_in, r.time_out, r.remarks
+        FROM users u
+        JOIN ojt_records r ON u.id = r.user_id
+        WHERE u.role = 'ojt'
+          AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
+          AND r.date = '$today' AND r.time_in IS NOT NULL AND r.time_in != ''
+        ORDER BY r.time_in ASC
+    ");
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
