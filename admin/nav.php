@@ -150,7 +150,9 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
 </nav>
 
 <!-- mobile offcanvas -->
+<!--
 <button id="mobileSidebarToggler" class="btn btn-outline-secondary d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar" aria-controls="mobileSidebar" aria-label="Open menu"><i class="bi bi-list"></i></button>
+-->
 
 <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileSidebar" aria-labelledby="mobileSidebarLabel">
   <div class="offcanvas-header">
