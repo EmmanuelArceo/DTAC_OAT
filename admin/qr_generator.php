@@ -104,7 +104,7 @@ $time_out_data = generate_qr_data('time_out');
             border-radius: 1.5rem;
             padding: 2rem 1.5rem;
             margin: 0 0.5rem;
-            min-width: 320px;
+            min-width: 520px;
             max-width: 100%;
             box-shadow: 0 2px 12px 0 rgba(76,142,177,0.08);
             border: 2px solid transparent;
@@ -114,8 +114,8 @@ $time_out_data = generate_qr_data('time_out');
             border: 2px solid var(--primary-dark);
         }
         .qr-img {
-            width: 200px;
-            height: 200px;
+            width: 400px;
+            height: 400px;
             object-fit: contain;
             background: #fff;
             border-radius: 1rem;
@@ -144,7 +144,7 @@ $time_out_data = generate_qr_data('time_out');
             .qr-glass { padding: 1rem 0.2rem; }
             .qr-title { font-size: 1.2rem; }
             .qr-section { padding: 1.1rem 0.5rem; min-width: 0; }
-            .qr-img { width: 140px; height: 140px; }
+            .qr-img { width: 250px; height: 250px; }
         }
     </style>
 </head>

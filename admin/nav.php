@@ -175,12 +175,12 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
 <?php if ($_SESSION['role'] === 'super_admin'): ?>
     <a class="nav-link d-flex align-items-center <?php echo active('sitesettings.php',$current); ?>" href="sitesettings.php" title="Site Settings" data-bs-toggle="tooltip" data-bs-placement="right">
       <div class="sb-icon"><i class="bi bi-gear"></i></div>
-      <div class="nav-label ms-2">Site Settings</div>
+      <div class="nav-label ms-2">Time Groups</div>
     </a>
 <?php endif; ?>
     <a class="nav-link d-flex align-items-center <?php echo active('qr_generator.php',$current); ?>" href="qr_generator.php" title="QR Generator" data-bs-toggle="tooltip" data-bs-placement="right">
       <div class="sb-icon"><i class="bi bi-upc-scan"></i></div>
-      <div class="nav-label ms-2">QR Generator</div>
+      <div class="nav-label ms-2">Time In/Out QR</div>
     </a>
   </div>
 
@@ -213,7 +213,7 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
       <a class="list-group-item list-group-item-action <?php echo active('activeojt.php',$current); ?>" href="activeojt.php">Active OJT</a>
       <a class="list-group-item list-group-item-action <?php echo active('otreports.php',$current); ?>" href="otreports.php">OT Reports</a>
       <a class="list-group-item list-group-item-action <?php echo active('dtruserview.php',$current); ?>" href="dtruserview.php">DTR View</a>
-      <a class="list-group-item list-group-item-action <?php echo active('sitesettings.php',$current); ?>" href="sitesettings.php">Site Settings</a>
+      <a class="list-group-item list-group-item-action <?php echo active('sitesettings.php',$current); ?>" href="sitesettings.php">Time Groups</a>
       <a class="list-group-item list-group-item-action <?php echo active('qr_generator.php',$current); ?>" href="qr_generator.php">QR Generator</a>
     </div>
 

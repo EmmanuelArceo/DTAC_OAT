@@ -633,7 +633,7 @@ if ($_SESSION['role'] === 'super_admin') {
                     <span>Manage Admins</span>
                 </a>
                 <?php endif; ?>
-                <a href="reports.php" class="action-btn">
+                <a href="otreports.php" class="action-btn">
                     <i class="bi bi-bar-chart-fill"></i>
                     <span>View Reports</span>
                 </a>

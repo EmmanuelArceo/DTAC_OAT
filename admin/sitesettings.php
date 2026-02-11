@@ -137,7 +137,7 @@ $time_groups = $oat->query("SELECT * FROM time_groups ORDER BY name");
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Site Settings</title>
+    <title>Time Groups</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -220,7 +220,7 @@ $time_groups = $oat->query("SELECT * FROM time_groups ORDER BY name");
 </head>
 <body>
     <div class="glass">
-        <div class="settings-title"><i class="bi bi-gear-fill me-2"></i>Site Settings</div>
+        <div class="settings-title"><i class="bi bi-gear-fill me-2"></i>Time Groups</div>
         <?php if (!empty($success)): ?>
             <div class="alert alert-<?= $alert_type ?? 'success' ?> alert-dismissible fade show" role="alert" id="success-alert">
                 <?= htmlspecialchars($success) ?>
