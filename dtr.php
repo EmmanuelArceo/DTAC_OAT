@@ -1,7 +1,7 @@
 <?php
 
 
-If (session_status() == PHP_SESSION_NONE) {
+if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 include 'db.php';
@@ -13,13 +13,13 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// Fetch DTR records for this OJT using prepared statement (include policy fields)
-$stmt = $oat->prepare("SELECT date, time_in, time_out, remarks, time_in_policy, time_out_policy, ot_hours, lunch_start, lunch_end FROM ojt_records WHERE user_id = ? ORDER BY date DESC");
+// Fetch DTR records for this OJT using prepared statement (include policy fields and id)
+$stmt = $oat->prepare("SELECT id, date, time_in, time_out, remarks, time_in_policy, time_out_policy, ot_hours, lunch_start, lunch_end FROM ojt_records WHERE user_id = ? ORDER BY date DESC");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $dtr_query = $stmt->get_result();
 
-// Function to calculate total hours (updated for per-record policies and accurate deductions)
+// Function to calculate total hours (updated for per-record policies and accurate deductions, now with floor for whole hours)
 function calculateTotalHours($row, $user_id, $oat) {
     if (!$row['time_in'] || !$row['time_out'] || $row['time_out'] === '00:00:00') {
         return ['total' => '', 'ot' => ''];
@@ -59,8 +59,8 @@ function calculateTotalHours($row, $user_id, $oat) {
     // OT hours: from ojt_records
     $ot_hours = (float)($row['ot_hours'] ?? 0);
 
-    $total_hours = max(0, round($reg_hours + $ot_hours, 2));
-    return ['total' => number_format($total_hours, 2) . ' h', 'ot' => number_format($ot_hours, 2) . ' h'];
+    $total_hours = max(0, floor($reg_hours + $ot_hours));
+    return ['total' => number_format($total_hours, 0) . ' h', 'ot' => number_format($ot_hours, 0) . ' h'];
 }
 
 ?>
@@ -203,7 +203,11 @@ function calculateTotalHours($row, $user_id, $oat) {
                         <?php while ($row = $dtr_query->fetch_assoc()): ?>
                             <?php $hours = calculateTotalHours($row, $user_id, $oat); ?>
                             <tr>
-                                <td class="text-center"><?= htmlspecialchars($row['date']) ?></td>
+                                <td class="text-center">
+                                    <a href="dtrdetail.php?id=<?= urlencode($row['id']) ?>" style="text-decoration:underline;color:var(--accent-deep);">
+                                        <?= htmlspecialchars($row['date']) ?>
+                                    </a>
+                                </td>
                                 <td class="text-center">
                                     <?php
                                         if ($row['time_in']) {

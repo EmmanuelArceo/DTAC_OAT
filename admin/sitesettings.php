@@ -15,10 +15,10 @@ if (!isset($_SESSION['user_id']) || !in_array(($_SESSION['role'] ?? ''), ['super
 $stmt = $oat->prepare("SELECT time_in, time_out, lunch_start, lunch_end FROM time_groups WHERE name = 'Default' LIMIT 1");
 $stmt->execute();
 $settings = $stmt->get_result()->fetch_assoc();
-$default_time_in = $settings['time_in'] ?? '08:00:00';
-$default_time_out = $settings['time_out'] ?? '17:00:00';
-$lunch_start = $settings['lunch_start'] ?? '12:00:00';
-$lunch_end = $settings['lunch_end'] ?? '14:00:00';
+$default_time_in = !empty($settings['time_in']) ? $settings['time_in'] : '08:00:00';  // Default to 8:00 AM
+$default_time_out = !empty($settings['time_out']) ? $settings['time_out'] : '17:00:00';  // Default to 5:00 PM
+$lunch_start = !empty($settings['lunch_start']) ? $settings['lunch_start'] : '12:00:00';  // Default to 12:00 PM
+$lunch_end = !empty($settings['lunch_end']) ? $settings['lunch_end'] : '13:00:00';  // Default to 1:00 PM
 
 // Handle POST requests with prepared statements for security
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
