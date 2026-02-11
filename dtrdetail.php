@@ -1,4 +1,5 @@
 <?php
+
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
@@ -30,8 +31,9 @@ $time_in = strtotime($dtr['time_in']);
 $time_out = strtotime($dtr['time_out']);
 $policy_time_in = strtotime($policy_time_in_str);
 $policy_time_out = strtotime($policy_time_out_str);
-$lunch_start_ts = strtotime($lunch_start);
-$lunch_end_ts = strtotime($lunch_end);
+
+// Calculate policy duration
+$policy_duration = $policy_time_out - $policy_time_in;
 
 $lateness = $time_in - $policy_time_in;
 if ($lateness > 0) {
@@ -47,19 +49,24 @@ if ($lateness > 0) {
     $late_note = "<span class='text-success'><i class='bi bi-check-circle'></i> On time.</span>";
 }
 
-$regular_end = $policy_time_out;
+// FIX: Regular end is counted start + policy duration
+$regular_end = $count_start + $policy_duration;
+
 $reg_hours = min($time_out, $regular_end) - $count_start;
 $reg_hours = $reg_hours / 3600;
 
+// Deduct lunch overlap (use same date as count_start)
+$lunch_start_ts = strtotime(date('Y-m-d', $count_start) . ' ' . $lunch_start);
+$lunch_end_ts = strtotime(date('Y-m-d', $count_start) . ' ' . $lunch_end);
 $overlap = max(0, min($time_out, $lunch_end_ts) - max($count_start, $lunch_start_ts));
 $lunch_note = $overlap > 0
-    ? "<span class='text-warning'><i class='bi bi-box-arrow-in-down'></i> Lunch break deducted: " . ($overlap/3600) . " hour(s).</span>"
+    ? "<span class='text-warning'><i class='bi bi-box-arrow-in-down'></i> Lunch break deducted: " . number_format($overlap/3600, 2) . " hour(s).</span>"
     : "<span class='text-success'><i class='bi bi-check-circle'></i> No lunch deduction.</span>";
 
 $reg_hours -= $overlap / 3600;
 
 $ot_hours = (float)($dtr['ot_hours'] ?? 0);
-$total_hours = max(0, floor($reg_hours + $ot_hours));
+$total_hours = max(0, round($reg_hours + $ot_hours, 2));
 ?>
 
 <!DOCTYPE html>
@@ -134,16 +141,16 @@ $total_hours = max(0, floor($reg_hours + $ot_hours));
                     </table>
                     <div class="mb-3">
                         <span class="badge bg-info hours-badge">
-                            <i class="bi bi-calculator"></i> Total Hours: <?= $total_hours ?> hour(s)
+                            <i class="bi bi-calculator"></i> Total Hours: <?= number_format($total_hours, 2) ?> hour(s)
                         </span>
                     </div>
                     <h5 class="mb-2"><i class="bi bi-info-circle"></i> Calculation Breakdown</h5>
                     <ul class="breakdown-list list-unstyled">
                         <li><?= $late_note ?></li>
                         <li><?= $lunch_note ?></li>
-                        <li><i class="bi bi-clock-history"></i> Regular hours counted: <strong><?= round($reg_hours, 2) ?> hour(s)</strong></li>
+                        <li><i class="bi bi-clock-history"></i> Regular hours counted: <strong><?= number_format($reg_hours, 2) ?> hour(s)</strong></li>
                         <li><i class="bi bi-plus-circle"></i> Overtime hours: <strong><?= $ot_hours ?> hour(s)</strong></li>
-                        <li><i class="bi bi-check2-all"></i> <strong>Total hours: <?= $total_hours ?> hour(s)</strong></li>
+                        <li><i class="bi bi-check2-all"></i> <strong>Total hours: <?= number_format($total_hours, 2) ?> hour(s)</strong></li>
                     </ul>
                 </div>
             </div>
