@@ -172,12 +172,12 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
       <div class="sb-icon"><i class="bi bi-clock-history"></i></div>
       <div class="nav-label ms-2">DTR View</div>
     </a>
-
+<?php if ($_SESSION['role'] === 'super_admin'): ?>
     <a class="nav-link d-flex align-items-center <?php echo active('sitesettings.php',$current); ?>" href="sitesettings.php" title="Site Settings" data-bs-toggle="tooltip" data-bs-placement="right">
       <div class="sb-icon"><i class="bi bi-gear"></i></div>
       <div class="nav-label ms-2">Site Settings</div>
     </a>
-
+<?php endif; ?>
     <a class="nav-link d-flex align-items-center <?php echo active('qr_generator.php',$current); ?>" href="qr_generator.php" title="QR Generator" data-bs-toggle="tooltip" data-bs-placement="right">
       <div class="sb-icon"><i class="bi bi-upc-scan"></i></div>
       <div class="nav-label ms-2">QR Generator</div>

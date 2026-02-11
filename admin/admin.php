@@ -627,10 +627,12 @@ if ($_SESSION['role'] === 'super_admin') {
                     <i class="bi bi-people-fill"></i>
                     <span>Manage OJTs</span>
                 </a>
+                <?php if ($_SESSION['role'] === 'super_admin'): ?>
                 <a href="manage_admins.php" class="action-btn">
                     <i class="bi bi-person-badge-fill"></i>
                     <span>Manage Admins</span>
                 </a>
+                <?php endif; ?>
                 <a href="reports.php" class="action-btn">
                     <i class="bi bi-bar-chart-fill"></i>
                     <span>View Reports</span>
@@ -639,10 +641,12 @@ if ($_SESSION['role'] === 'super_admin') {
                     <i class="bi bi-qr-code-scan"></i>
                     <span>QR Generator</span>
                 </a>
+                <?php if ($_SESSION['role'] === 'super_admin'): ?>
                 <a href="site_settings.php" class="action-btn">
                     <i class="bi bi-gear-fill"></i>
                     <span>Site Settings</span>
                 </a>
+                <?php endif; ?>
             </div>
         </div>
 
