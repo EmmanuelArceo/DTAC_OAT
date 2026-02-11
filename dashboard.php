@@ -1,5 +1,6 @@
 <?php
 
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -36,39 +37,14 @@ $stmt->execute();
 $req = $stmt->get_result()->fetch_assoc();
 $required_hours = (float)($req['required_hours'] ?? 0);
 
-// Fetch default time in/out and lunch from default time group using prepared statement
-$stmt = $oat->prepare("SELECT time_in, time_out, lunch_start, lunch_end FROM time_groups WHERE name = 'Default' LIMIT 1");
-$stmt->execute();
-$settings = $stmt->get_result()->fetch_assoc();
-$default_time_in = $settings['time_in'] ?? '08:00:00';
-$default_time_out = $settings['time_out'] ?? '17:00:00';
-$default_lunch_start = $settings['lunch_start'] ?? '12:00:00';
-$default_lunch_end = $settings['lunch_end'] ?? '13:00:00'; // Updated default to 1h lunch
-
-// Check if user is in a time group and fetch group times
-$user_policy_time_in = $default_time_in;
-$user_policy_time_out = $default_time_out;
-$user_lunch_start = $default_lunch_start;
-$user_lunch_end = $default_lunch_end;
-$stmt = $oat->prepare("SELECT tg.time_in, tg.time_out, tg.lunch_start, tg.lunch_end FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$group = $stmt->get_result()->fetch_assoc();
-if ($group) {
-    $user_policy_time_in = $group['time_in'];
-    $user_policy_time_out = $group['time_out'];
-    $user_lunch_start = $group['lunch_start'] ?: $default_lunch_start;
-    $user_lunch_end = $group['lunch_end'] ?: $default_lunch_end;
-}
-
 // Fetch completed hours (only for valid time_out records) with policy adjustments
 $total_completed = 0;
-$stmt = $oat->prepare("SELECT time_in, time_out, time_in_policy, time_out_policy, ot_hours FROM ojt_records WHERE user_id = ? AND time_out IS NOT NULL AND time_out != '00:00:00' AND time_out > time_in");
+$stmt = $oat->prepare("SELECT time_in, time_out, time_in_policy, time_out_policy, ot_hours, lunch_start, lunch_end FROM ojt_records WHERE user_id = ? AND time_out IS NOT NULL AND time_out != '00:00:00' AND time_out > time_in");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $records = $stmt->get_result();
 while ($row = $records->fetch_assoc()) {
-    $result = calculate_session_hours($row, $user_policy_time_in, $user_policy_time_out, $user_lunch_start, $user_lunch_end, $user_id, $oat);
+    $result = calculate_session_hours($row, $row['time_in_policy'], $row['time_out_policy'], $row['lunch_start'], $row['lunch_end'], $user_id, $oat);
     $total_completed += $result['regular'] + $result['ot'];
 }
 $completed_hours = floor($total_completed);
@@ -76,7 +52,7 @@ $remaining_hours = max(0, $required_hours - $completed_hours);
 $progress = $required_hours > 0 ? min(100, round(($completed_hours / $required_hours) * 100)) : 0;
 
 // recent sessions (last 5) using prepared statement
-$stmt = $oat->prepare("SELECT date, time_in, time_out, ot_hours, time_in_policy FROM ojt_records WHERE user_id = ? ORDER BY date DESC, time_in DESC LIMIT 5");
+$stmt = $oat->prepare("SELECT id, date, time_in, time_out, ot_hours, time_in_policy, time_out_policy, lunch_start, lunch_end FROM ojt_records WHERE user_id = ? ORDER BY date DESC, time_in DESC LIMIT 5");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $recent = $stmt->get_result();
@@ -206,7 +182,7 @@ $recent = $stmt->get_result();
             box-shadow:0 6px 18px rgba(15,23,42,0.06);
         }
         @media (max-width: 900px){
-            .stats{ grid-template-columns: repeat(1,1fr); }
+            .stats{ grid-template-columns: repeat(1,fr); }
             .header{ flex-direction:column; align-items:flex-start; gap:8px; padding:16px;}
             .actions{ padding:14px; width:100%; }
         }
@@ -313,14 +289,18 @@ $recent = $stmt->get_result();
                     <tbody>
                         <?php while($r = $recent->fetch_assoc()): ?>
                             <tr>
-                                <td><?= htmlspecialchars($r['date']) ?></td>
+                                <td>
+                                    <a href="dtrdetail.php?id=<?= urlencode($r['id']) ?>" style="text-decoration:underline;color:var(--accent-deep);">
+                                        <?= htmlspecialchars($r['date']) ?>
+                                    </a>
+                                </td>
                                 <td>
                                     <?php
                                         if ($r['time_in']) {
                                             $time_in_ts = strtotime($r['time_in']);
-                                            $policy_in = $r['time_in_policy'] ?? $user_policy_time_in;
+                                            $policy_in = $r['time_in_policy'] ?? '08:00:00';
                                             $policy_in_time_ts = strtotime(date('Y-m-d', $time_in_ts) . ' ' . $policy_in);
-                                            $is_late = $time_in_ts >= $policy_in_time_ts;
+                                            $is_late = $time_in_ts > $policy_in_time_ts;
                                             $time_in_display = date('g:i A', $time_in_ts);
                                             if ($is_late) {
                                                 echo '<span style="color: red;">' . htmlspecialchars($time_in_display) . '</span>';
@@ -344,7 +324,7 @@ $recent = $stmt->get_result();
                                 <td>
                                     <?php
                                         if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
-                                            $result = calculate_session_hours($r, $user_policy_time_in, $user_policy_time_out, $user_lunch_start, $user_lunch_end, $user_id, $oat);
+                                            $result = calculate_session_hours($r, $r['time_in_policy'], $r['time_out_policy'], $r['lunch_start'], $r['lunch_end'], $user_id, $oat);
                                             $reg = $result['regular'];
                                             echo floor($reg) . ' h';
                                         } else {
@@ -366,7 +346,7 @@ $recent = $stmt->get_result();
                                 <td>
                                     <?php
                                         if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
-                                            $result = calculate_session_hours($r, $user_policy_time_in, $user_policy_time_out, $user_lunch_start, $user_lunch_end, $user_id, $oat);
+                                            $result = calculate_session_hours($r, $r['time_in_policy'], $r['time_out_policy'], $r['lunch_start'], $r['lunch_end'], $user_id, $oat);
                                             echo $result['total'] . ' h';
                                         } else {
                                             echo '<span style="color:var(--muted)">--</span>';
@@ -402,13 +382,11 @@ function calculate_session_hours($row, $user_policy_time_in, $user_policy_time_o
 
     $time_in = strtotime($row['time_in']);
     $time_out = strtotime($row['time_out']);
-    $policy_time_in = $user_policy_time_in; // Always use current user policy
-    $policy_time_out = $user_policy_time_out; // Always use current user policy
 
-    $regular_end = strtotime($policy_time_out);
-    $policy_in_time = strtotime(date('Y-m-d', $time_in) . ' ' . $policy_time_in);
+    $policy_in_time = strtotime(date('Y-m-d', $time_in) . ' ' . $user_policy_time_in);
+    $policy_out_time = strtotime(date('Y-m-d', $time_in) . ' ' . $user_policy_time_out);
+    $policy_duration = $policy_out_time - $policy_in_time;
 
-    // If late by 1 hour or more, start counting from next full hour; otherwise, start from actual time in
     $lateness = $time_in - $policy_in_time;
     if ($lateness >= 3600) {
         $count_start = strtotime(date('Y-m-d H:00:00', $time_in) . ' +1 hour');
@@ -416,17 +394,17 @@ function calculate_session_hours($row, $user_policy_time_in, $user_policy_time_o
         $count_start = $time_in;
     }
 
-    // Regular hours: up to official time out
+    // Regular end is counted start + policy duration
+    $regular_end = $count_start + $policy_duration;
+
     $reg_hours = min($time_out, $regular_end) - $count_start;
     $reg_hours = $reg_hours / 3600;
 
-    // Deduct overlapping lunch break hours (use stored lunch if available, else current)
     $lunch_start = strtotime(date('Y-m-d', $count_start) . ' ' . ($row['lunch_start'] ?? $user_lunch_start));
     $lunch_end = strtotime(date('Y-m-d', $count_start) . ' ' . ($row['lunch_end'] ?? $user_lunch_end));
     $overlap = max(0, min($time_out, $lunch_end) - max($count_start, $lunch_start));
     $reg_hours -= $overlap / 3600;
 
-    // OT hours: from ojt_records
     $ot_hours = (float)($row['ot_hours'] ?? 0);
 
     $total_hours = max(0, floor($reg_hours + $ot_hours));
