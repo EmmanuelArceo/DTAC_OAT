@@ -95,20 +95,7 @@ if ($user_id) {
             </ul>
 
             <div class="d-flex align-items-center">
-                <?php if ($user_id): ?>
-                    <div class="dropdown">
-                        <button class="btn btn-link p-0 text-decoration-none" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <img src="<?= htmlspecialchars($profile_img) ?>" alt="Profile" class="ojt-profile-img">
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                            <li><h6 class="dropdown-header"><?= htmlspecialchars(trim("$fname $lname")) ?></h6></li>
-                            <li><small class="dropdown-item-text text-muted"><?= htmlspecialchars($role) ?> - <?= htmlspecialchars($position) ?></small></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="profile.php">View Profile</a></li>
-                            <li><a class="dropdown-item" href="logout.php">Logout</a></li>
-                        </ul>
-                    </div>
-                <?php endif; ?>
+           
             </div>
         </div>
     </div>

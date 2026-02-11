@@ -549,10 +549,23 @@ if ($_SESSION['role'] === 'super_admin') {
     <div class="dashboard-container">
         <!-- Dashboard Header -->
         <div class="dashboard-header">
-            <h1><i class="bi bi-speedometer2 me-2"></i>Super Admin Dashboard</h1>
+            <h1>
+                <i class="bi bi-speedometer2 me-2"></i>
+                <?php if ($_SESSION['role'] === 'super_admin'): ?>
+                    Super Admin Dashboard
+                <?php else: ?>
+                    OJT Supervisor Dashboard
+                <?php endif; ?>
+            </h1>
             <p>Monitor and manage your OJT system efficiently</p>
             <span class="welcome-badge">
-                <i class="bi bi-person-circle me-1"></i> Welcome, Super Admin!
+                <i class="bi bi-person-circle me-1"></i>
+                Welcome,
+                <?php if ($_SESSION['role'] === 'super_admin'): ?>
+                    Super Admin!
+                <?php else: ?>
+                    OJT Supervisor!
+                <?php endif; ?>
             </span>
         </div>
 

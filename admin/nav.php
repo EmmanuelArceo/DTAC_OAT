@@ -29,6 +29,28 @@ if (isset($_SESSION['avatar']) && $_SESSION['avatar'] && file_exists('../' . $_S
         }
     }
 }
+
+// Fetch user info if not set in session
+if (
+    empty($_SESSION['fname']) ||
+    empty($_SESSION['lname']) ||
+    !isset($_SESSION['mname'])
+) {
+    include_once '../db.php';
+    $admin_id = (int)$_SESSION['user_id'];
+    $result = $oat->query("SELECT fname, mname, lname, profile_img FROM users WHERE id = $admin_id LIMIT 1");
+    if ($result && $row = $result->fetch_assoc()) {
+        $_SESSION['fname'] = $row['fname'];
+        $_SESSION['lname'] = $row['lname'];
+        $_SESSION['mname'] = $row['mname'];
+        // Optionally update avatar if not set
+        if (!empty($row['profile_img']) && file_exists('../' . $row['profile_img'])) {
+            $avatar = $row['profile_img'];
+            $_SESSION['avatar'] = $avatar;
+        }
+    }
+}
+
 ?>
 <!-- restore collapsed state early to avoid flicker -->
 <script>

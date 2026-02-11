@@ -14,7 +14,7 @@ $errors = [];
 $success = '';
 
 // Fetch current admin details
-$stmt = $oat->prepare("SELECT fname, lname, email, profile_img FROM users WHERE id = ? LIMIT 1");
+$stmt = $oat->prepare("SELECT fname, mname, lname, email, profile_img FROM users WHERE id = ? LIMIT 1");
 $stmt->bind_param("i", $admin_id);
 $stmt->execute();
 $admin = $stmt->get_result()->fetch_assoc();
@@ -68,11 +68,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         if (!empty($password)) {
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $oat->prepare("UPDATE users SET fname = ?, lname = ?, email = ?, password = ?, profile_img = ? WHERE id = ?");
-            $stmt->bind_param("sssssi", $fname, $lname, $email, $hashed_password, $profile_img, $admin_id);
+            $stmt = $oat->prepare("UPDATE users SET fname = ?, mname = ?, lname = ?, email = ?, password = ?, profile_img = ? WHERE id = ?");
+            $stmt->bind_param("ssssssi", $fname, $mname, $lname, $email, $hashed_password, $profile_img, $admin_id);
         } else {
-            $stmt = $oat->prepare("UPDATE users SET fname = ?, lname = ?, email = ?, profile_img = ? WHERE id = ?");
-            $stmt->bind_param("ssssi", $fname, $lname, $email, $profile_img, $admin_id);
+            $stmt = $oat->prepare("UPDATE users SET fname = ?, mname = ?, lname = ?, email = ?, profile_img = ? WHERE id = ?");
+            $stmt->bind_param("sssssi", $fname, $mname, $lname, $email, $profile_img, $admin_id);
         }
         if ($stmt->execute()) {
             $success = 'Profile updated successfully.';
@@ -83,6 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['fname'] = $fname;
             $_SESSION['lname'] = $lname;
             $_SESSION['avatar'] = $profile_img;
+            $_SESSION['mname'] = $mname;
         } else {
             $errors[] = 'Failed to update profile. Please try again.';
         }
@@ -168,6 +169,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="mb-3">
             <label for="fname" class="form-label">First Name</label>
             <input type="text" class="form-control" id="fname" name="fname" value="<?= htmlspecialchars($admin['fname']) ?>" required>
+        </div>
+        <div class="mb-3">
+            <label for="mname" class="form-label">Middle Name/Initial</label>
+            <input type="text" class="form-control" id="mname" name="mname" value="<?= htmlspecialchars($admin['mname'] ?? '') ?>">
         </div>
         <div class="mb-3">
             <label for="lname" class="form-label">Last Name</label>

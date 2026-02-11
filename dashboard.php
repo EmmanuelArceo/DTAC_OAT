@@ -108,6 +108,7 @@ $recent = $stmt->get_result();
             color:#0f172a;
             -webkit-font-smoothing:antialiased;
         }
+        
         .wrap{
             max-width:1100px;
             margin:48px auto;
@@ -164,6 +165,7 @@ $recent = $stmt->get_result();
             border-radius:999px;
             overflow:hidden;
         }
+ 
         .progress-bar{
             background: linear-gradient(90deg, var(--accent) 0%, var(--accent-deep) 100%);
             transition:width .6s cubic-bezier(.2,.9,.3,1);
@@ -211,7 +213,7 @@ $recent = $stmt->get_result();
         .profile-float {
             position: absolute;
             left: 50%;
-            top:8%;
+            top:7%;
             transform: translate(-50%, -40%); /* 50% overlap */
             z-index: 10;
             width: 150px;
