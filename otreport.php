@@ -1,32 +1,21 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-include 'db.php';
-include 'nav.php';
-
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+// Session and access control
+if (session_status() === PHP_SESSION_NONE) session_start();
+require_once 'db.php';
+require_once 'nav.php';
+if (empty($_SESSION['user_id'])) {
+    header('Location: login.php');
     exit;
 }
-
 $user_id = $_SESSION['user_id'];
 
-// fetch policy times
+// Fetch user policy times
 $stmt = $oat->prepare("SELECT default_time_in, default_time_out FROM site_settings LIMIT 1");
 $stmt->execute();
 $settings = $stmt->get_result()->fetch_assoc();
-$default_time_in = $settings['default_time_in'] ?? '08:00:00';
-$default_time_out = $settings['default_time_out'] ?? '17:00:00';
-
-$user_policy_time_in = $default_time_in;
-$user_policy_time_out = $default_time_out;
-$stmt = $oat->prepare("
-    SELECT tg.time_in, tg.time_out
-    FROM user_time_groups utg
-    JOIN time_groups tg ON utg.group_id = tg.id
-    WHERE utg.user_id = ? LIMIT 1
-");
+$user_policy_time_in = $settings['default_time_in'] ?? '08:00:00';
+$user_policy_time_out = $settings['default_time_out'] ?? '17:00:00';
+$stmt = $oat->prepare("SELECT tg.time_in, tg.time_out FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $group = $stmt->get_result()->fetch_assoc();
@@ -35,55 +24,51 @@ if ($group) {
     $user_policy_time_out = $group['time_out'];
 }
 
-// standard hours (not used but kept)
-$standard_hours = (strtotime($user_policy_time_out) - strtotime($user_policy_time_in)) / 3600;
-
 $errors = [];
 $success = '';
 
+// Handle OT report submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_ot_report'])) {
-    $student_id = $user_id;
     $ot_type = $_POST['ot_type'] ?? '';
     $ot_date = $_POST['ot_date'] ?? date('Y-m-d');
     $ot_reason = trim($_POST['ot_reason'] ?? '');
-    // handle uploaded file but DB not storing path (table lacks column)
-    if (isset($_FILES['ot_proof']) && $_FILES['ot_proof']['error'] === UPLOAD_ERR_OK) {
+    $ot_hours = 0;
+    $actualInDT = $actualOutDT = null;
+
+    // File upload (optional, not stored in DB)
+    if (!empty($_FILES['ot_proof']['name']) && $_FILES['ot_proof']['error'] === UPLOAD_ERR_OK) {
         $upload_dir = 'uploads/ot_proofs/';
         if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
         $file_name = uniqid() . '_' . basename($_FILES['ot_proof']['name']);
         move_uploaded_file($_FILES['ot_proof']['tmp_name'], $upload_dir . $file_name);
     }
 
-    // Build DateTime objects ensuring same date
-    // Determine actual in/out based on selected OT type (early: user provides time_in; late/normal OT: user provides time_out)
+    // Build DateTime objects
     try {
-        $policyInDT = new DateTime($ot_date . ' ' . date('g:i A', strtotime($user_policy_time_in)));
-        $policyOutDT = new DateTime($ot_date . ' ' . date('g:i A', strtotime($user_policy_time_out)));
+        $policyInDT = new DateTime("$ot_date $user_policy_time_in");
+        $policyOutDT = new DateTime("$ot_date $user_policy_time_out");
     } catch (Exception $e) {
         $errors[] = 'Invalid policy time configuration.';
     }
 
-    $actualInDT = null;
-    $actualOutDT = null;
-
     if ($ot_type === 'early') {
         $time_in_hour = $_POST['time_in_hour'] ?? '';
         $time_in_ampm = $_POST['time_in_ampm'] ?? 'AM';
-        if ($time_in_hour === '') $errors[] = 'Actual time in is required for early OT.';
-        else {
-            $actualInStr = sprintf('%s %s:00 %s', $ot_date, $time_in_hour, $time_in_ampm);
+        if ($time_in_hour === '') {
+            $errors[] = 'Actual time in is required for early OT.';
+        } else {
+            $actualInStr = "$ot_date $time_in_hour:00 $time_in_ampm";
             $actualInDT = DateTime::createFromFormat('Y-m-d g:i A', $actualInStr);
-            // actual out is policy out
             $actualOutDT = clone $policyOutDT;
         }
     } elseif ($ot_type === 'late') {
         $time_out_hour = $_POST['time_out_hour'] ?? '';
         $time_out_ampm = $_POST['time_out_ampm'] ?? 'PM';
-        if ($time_out_hour === '') $errors[] = 'Actual time out is required for normal OT.';
-        else {
-            $actualOutStr = sprintf('%s %s:00 %s', $ot_date, $time_out_hour, $time_out_ampm);
+        if ($time_out_hour === '') {
+            $errors[] = 'Actual time out is required for normal OT.';
+        } else {
+            $actualOutStr = "$ot_date $time_out_hour:00 $time_out_ampm";
             $actualOutDT = DateTime::createFromFormat('Y-m-d g:i A', $actualOutStr);
-            // actual in is policy in
             $actualInDT = clone $policyInDT;
         }
     } else {
@@ -91,34 +76,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_ot_report'])) 
     }
 
     if (empty($errors) && $actualInDT && $actualOutDT) {
-        // If times cross midnight (out < in), add 1 day to out
+        // Handle midnight crossing
         if ($actualOutDT <= $actualInDT) $actualOutDT->modify('+1 day');
-
         $earlyDiff = max(0, ($policyInDT->getTimestamp() - $actualInDT->getTimestamp()) / 3600);
         $lateDiff  = max(0, ($actualOutDT->getTimestamp() - $policyOutDT->getTimestamp()) / 3600);
-        $ot_hours = round($earlyDiff + $lateDiff); // keep rounding behavior as before
+        $ot_hours = round($earlyDiff + $lateDiff);
         if ($ot_hours <= 0) $errors[] = 'Calculated OT hours is 0. No OT to submit.';
     }
 
     if (empty($errors)) {
         $stmt = $oat->prepare("INSERT INTO ot_reports (student_id, ot_hours, ot_date, ot_reason) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("iiss", $student_id, $ot_hours, $ot_date, $ot_reason);
+        $stmt->bind_param("iiss", $user_id, $ot_hours, $ot_date, $ot_reason);
         if ($stmt->execute()) $success = 'OT report submitted successfully!';
         else $errors[] = 'Database error while saving report.';
     }
 }
 
-// admin summaries (unchanged)
+// Admin summaries
 $ot_summaries = [];
-if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
-    $stmt = $oat->prepare("
-        SELECT u.fname, u.lname, MONTH(otr.ot_date) AS month, YEAR(otr.ot_date) AS year, SUM(otr.ot_hours) AS total_ot
-        FROM ot_reports otr
-        JOIN users u ON otr.student_id = u.id
-        WHERE otr.approved = 1
-        GROUP BY u.id, YEAR(otr.ot_date), MONTH(otr.ot_date)
-        ORDER BY year DESC, month DESC
-    ");
+if (($_SESSION['role'] ?? '') === 'admin') {
+    $stmt = $oat->prepare("SELECT u.fname, u.lname, MONTH(otr.ot_date) AS month, YEAR(otr.ot_date) AS year, SUM(otr.ot_hours) AS total_ot FROM ot_reports otr JOIN users u ON otr.student_id = u.id WHERE otr.approved = 1 GROUP BY u.id, YEAR(otr.ot_date), MONTH(otr.ot_date) ORDER BY year DESC, month DESC");
     $stmt->execute();
     $ot_summaries = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
@@ -137,14 +114,12 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
         <div class="card-body">
             <h4 class="card-title text-primary">Submit OT Report</h4>
             <p class="text-muted">OT includes early arrival (before <?php echo htmlspecialchars(date('g:i A', strtotime($user_policy_time_in))); ?>) or normal overtime (after <?php echo htmlspecialchars(date('g:i A', strtotime($user_policy_time_out))); ?>).</p>
-
             <?php if ($success): ?>
                 <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
             <?php endif; ?>
             <?php if ($errors): ?>
                 <div class="alert alert-danger"><ul><?php foreach ($errors as $e) echo '<li>'.htmlspecialchars($e).'</li>'; ?></ul></div>
             <?php endif; ?>
-
             <form method="POST" enctype="multipart/form-data" autocomplete="off">
                 <div class="mb-3">
                     <label class="form-label">OT Type</label><br>
@@ -157,7 +132,6 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
                         <label class="form-check-label" for="ot_type_late">Normal Overtime</label>
                     </div>
                 </div>
-
                 <div class="mb-3" id="time_in_section">
                     <label class="form-label">Actual Time In (hour)</label>
                     <div class="d-flex gap-2">
@@ -167,7 +141,6 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
                         </select>
                     </div>
                 </div>
-
                 <div class="mb-3 d-none" id="time_out_section">
                     <label class="form-label">Actual Time Out (hour)</label>
                     <div class="d-flex gap-2">
@@ -177,32 +150,26 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
                         </select>
                     </div>
                 </div>
-
                 <div class="mb-3">
                     <label class="form-label">Calculated OT Hours</label>
                     <input type="number" id="ot_hours" name="ot_hours" class="form-control" readonly>
                 </div>
-
                 <div class="mb-3">
                     <label class="form-label">OT Date</label>
                     <input type="date" name="ot_date" class="form-control" value="<?php echo date('Y-m-d'); ?>">
                 </div>
-
                 <div class="mb-3">
                     <label class="form-label">Reason</label>
                     <textarea name="ot_reason" class="form-control" rows="3" required></textarea>
                 </div>
-
                 <div class="mb-3">
                     <label class="form-label">Proof (optional)</label>
                     <input type="file" name="ot_proof" class="form-control" accept="image/*,.pdf">
                 </div>
-
                 <button type="submit" name="submit_ot_report" class="btn btn-primary w-100">Submit OT Report</button>
             </form>
         </div>
     </div>
-
     <?php if (!empty($ot_summaries)): ?>
     <div class="card">
         <div class="card-body">
