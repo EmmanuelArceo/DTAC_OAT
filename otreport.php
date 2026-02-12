@@ -9,19 +9,20 @@ if (empty($_SESSION['user_id'])) {
 }
 $user_id = $_SESSION['user_id'];
 
-// Fetch user policy times
-$stmt = $oat->prepare("SELECT default_time_in, default_time_out FROM site_settings LIMIT 1");
+// Determine OT date (defaults to today) and check whether user timed in for that date
+$ot_date = $_POST['ot_date'] ?? date('Y-m-d');
+$user_policy_time_in = '08:00:00';
+$user_policy_time_out = '17:00:00';
+$has_timed_in_for_date = false;
+
+$stmt = $oat->prepare("SELECT time_in_policy, time_out_policy FROM ojt_records WHERE user_id = ? AND DATE(time_in) = ?");
+$stmt->bind_param("is", $user_id, $ot_date);
 $stmt->execute();
-$settings = $stmt->get_result()->fetch_assoc();
-$user_policy_time_in = $settings['default_time_in'] ?? '08:00:00';
-$user_policy_time_out = $settings['default_time_out'] ?? '17:00:00';
-$stmt = $oat->prepare("SELECT tg.time_in, tg.time_out FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$group = $stmt->get_result()->fetch_assoc();
-if ($group) {
-    $user_policy_time_in = $group['time_in'];
-    $user_policy_time_out = $group['time_out'];
+$record = $stmt->get_result()->fetch_assoc();
+$has_timed_in_for_date = (bool) $record;
+if ($record) {
+    $user_policy_time_in = $record['time_in_policy'] ?? $user_policy_time_in;
+    $user_policy_time_out = $record['time_out_policy'] ?? $user_policy_time_out;
 }
 
 $errors = [];
@@ -29,66 +30,79 @@ $success = '';
 
 // Handle OT report submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_ot_report'])) {
-    $ot_type = $_POST['ot_type'] ?? '';
-    $ot_date = $_POST['ot_date'] ?? date('Y-m-d');
-    $ot_reason = trim($_POST['ot_reason'] ?? '');
-    $ot_hours = 0;
-    $actualInDT = $actualOutDT = null;
-
-    // File upload (optional, not stored in DB)
-    if (!empty($_FILES['ot_proof']['name']) && $_FILES['ot_proof']['error'] === UPLOAD_ERR_OK) {
-        $upload_dir = 'uploads/ot_proofs/';
-        if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
-        $file_name = uniqid() . '_' . basename($_FILES['ot_proof']['name']);
-        move_uploaded_file($_FILES['ot_proof']['tmp_name'], $upload_dir . $file_name);
-    }
-
-    // Build DateTime objects
-    try {
-        $policyInDT = new DateTime("$ot_date $user_policy_time_in");
-        $policyOutDT = new DateTime("$ot_date $user_policy_time_out");
-    } catch (Exception $e) {
-        $errors[] = 'Invalid policy time configuration.';
-    }
-
-    if ($ot_type === 'early') {
-        $time_in_hour = $_POST['time_in_hour'] ?? '';
-        $time_in_ampm = $_POST['time_in_ampm'] ?? 'AM';
-        if ($time_in_hour === '') {
-            $errors[] = 'Actual time in is required for early OT.';
-        } else {
-            $actualInStr = "$ot_date $time_in_hour:00 $time_in_ampm";
-            $actualInDT = DateTime::createFromFormat('Y-m-d g:i A', $actualInStr);
-            $actualOutDT = clone $policyOutDT;
-        }
-    } elseif ($ot_type === 'late') {
-        $time_out_hour = $_POST['time_out_hour'] ?? '';
-        $time_out_ampm = $_POST['time_out_ampm'] ?? 'PM';
-        if ($time_out_hour === '') {
-            $errors[] = 'Actual time out is required for normal OT.';
-        } else {
-            $actualOutStr = "$ot_date $time_out_hour:00 $time_out_ampm";
-            $actualOutDT = DateTime::createFromFormat('Y-m-d g:i A', $actualOutStr);
-            $actualInDT = clone $policyInDT;
-        }
+    // block submission if no time-in record exists for the selected date
+    if (!$has_timed_in_for_date) {
+        $errors[] = 'You must time in for the selected date to submit an OT report.';
     } else {
-        $errors[] = 'Invalid OT type.';
-    }
+        $ot_type = $_POST['ot_type'] ?? '';
+        $ot_date = $_POST['ot_date'] ?? date('Y-m-d');
+        $ot_reason = trim($_POST['ot_reason'] ?? '');
+        $ot_hours = 0;
+        $actualInDT = $actualOutDT = null;
 
-    if (empty($errors) && $actualInDT && $actualOutDT) {
-        // Handle midnight crossing
-        if ($actualOutDT <= $actualInDT) $actualOutDT->modify('+1 day');
-        $earlyDiff = max(0, ($policyInDT->getTimestamp() - $actualInDT->getTimestamp()) / 3600);
-        $lateDiff  = max(0, ($actualOutDT->getTimestamp() - $policyOutDT->getTimestamp()) / 3600);
-        $ot_hours = round($earlyDiff + $lateDiff);
-        if ($ot_hours <= 0) $errors[] = 'Calculated OT hours is 0. No OT to submit.';
-    }
+        // Check if ojt_records exists for the date
+        // (redundant safety check) re-use already-fetched $record
+        if (!$record) {
+            $errors[] = 'You must time in first for this date to submit an OT report.';
+        }
 
-    if (empty($errors)) {
-        $stmt = $oat->prepare("INSERT INTO ot_reports (student_id, ot_hours, ot_date, ot_reason) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("iiss", $user_id, $ot_hours, $ot_date, $ot_reason);
-        if ($stmt->execute()) $success = 'OT report submitted successfully!';
-        else $errors[] = 'Database error while saving report.';
+        // File upload (optional, not stored in DB)
+        if (!empty($_FILES['ot_proof']['name']) && $_FILES['ot_proof']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = 'uploads/ot_proofs/';
+            if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+            $file_name = uniqid() . '_' . basename($_FILES['ot_proof']['name']);
+            move_uploaded_file($_FILES['ot_proof']['tmp_name'], $upload_dir . $file_name);
+        }
+
+        // Build DateTime objects
+        try {
+            $policyInDT = new DateTime("$ot_date $user_policy_time_in");
+            $policyOutDT = new DateTime("$ot_date $user_policy_time_out");
+        } catch (Exception $e) {
+            $errors[] = 'Invalid policy time configuration.';
+        }
+
+        if ($ot_type === 'early') {
+            $time_in_hour = $_POST['time_in_hour'] ?? '';
+            $time_in_ampm = $_POST['time_in_ampm'] ?? 'AM';
+            if ($time_in_hour === '') {
+                $errors[] = 'Actual time in is required for early OT.';
+            } else {
+                $actualInStr = "$ot_date $time_in_hour:00 $time_in_ampm";
+                $actualInDT = DateTime::createFromFormat('Y-m-d g:i A', $actualInStr);
+                $actualOutDT = clone $policyOutDT;
+            }
+        } elseif ($ot_type === 'late') {
+            $time_out_hour = $_POST['time_out_hour'] ?? '';
+            $time_out_ampm = $_POST['time_out_ampm'] ?? 'PM';
+            if ($time_out_hour === '') {
+                $errors[] = 'Actual time out is required for normal OT.';
+            } else {
+                $actualOutStr = "$ot_date $time_out_hour:00 $time_out_ampm";
+                $actualOutDT = DateTime::createFromFormat('Y-m-d g:i A', $actualOutStr);
+                $actualInDT = clone $policyInDT;
+            }
+        } else {
+            $errors[] = 'Invalid OT type.';
+        }
+
+        if (empty($errors) && $actualInDT && $actualOutDT) {
+            // Handle midnight crossing
+            if ($actualOutDT <= $actualInDT) $actualOutDT->modify('+1 day');
+            $earlyDiff = max(0, ($policyInDT->getTimestamp() - $actualInDT->getTimestamp()) / 3600);
+            $lateDiff  = max(0, ($actualOutDT->getTimestamp() - $policyOutDT->getTimestamp()) / 3600);
+            $ot_hours = round($earlyDiff + $lateDiff);
+            if ($ot_hours <= 0) $errors[] = 'Calculated OT hours is 0. No OT to submit.';
+        }
+
+        if (empty($errors)) {
+            $reported_time_in = $ot_type === 'early' ? $actualInDT->format('H:i:s') : null;
+            $reported_time_out = $ot_type === 'late' ? $actualOutDT->format('H:i:s') : null;
+            $stmt = $oat->prepare("INSERT INTO ot_reports (student_id, ot_hours, ot_type, reported_time_in, reported_time_out, ot_date, ot_reason) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("iisssss", $user_id, $ot_hours, $ot_type, $reported_time_in, $reported_time_out, $ot_date, $ot_reason);
+            if ($stmt->execute()) $success = 'OT report submitted successfully!';
+            else $errors[] = 'Database error while saving report.';
+        }
     }
 }
 
@@ -110,6 +124,12 @@ if (($_SESSION['role'] ?? '') === 'admin') {
 </head>
 <body>
 <main class="container py-4" style="max-width:680px">
+    <?php if (!$has_timed_in_for_date): ?>
+        <div class="alert alert-warning">
+            You can't submit an OT report because you are not timed in for the selected date (<?php echo htmlspecialchars($ot_date); ?>).
+            <a href="dtr.php" class="btn btn-primary btn-sm">Time In Today</a>
+        </div>
+    <?php else: ?>
     <div class="card mb-3">
         <div class="card-body">
             <h4 class="card-title text-primary">Submit OT Report</h4>
@@ -170,6 +190,8 @@ if (($_SESSION['role'] ?? '') === 'admin') {
             </form>
         </div>
     </div>
+    <?php endif; ?>
+  
     <?php if (!empty($ot_summaries)): ?>
     <div class="card">
         <div class="card-body">
@@ -230,18 +252,20 @@ function calculateOT(){
     if (!typeEl) return;
     const type = typeEl.value;
     let total = 0;
+    const policyIn24 = to24(policyInHour, policyInAmpm);
+    const policyOut24 = to24(policyOutHour, policyOutAmpm);
     if (type==='early') {
         const ih = document.getElementById('time_in_hour').value;
         const ia = document.getElementById('time_in_ampm').value;
         if (!ih) { document.getElementById('ot_hours').value = ''; return; }
         const actualIn = to24(ih, ia);
-        total = Math.max(0, policyInHour - actualIn);
+        total = Math.max(0, policyIn24 - actualIn);
     } else {
         const oh = document.getElementById('time_out_hour').value;
         const oa = document.getElementById('time_out_ampm').value;
         if (!oh) { document.getElementById('ot_hours').value = ''; return; }
         const actualOut = to24(oh, oa);
-        total = Math.max(0, actualOut - policyOutHour);
+        total = Math.max(0, actualOut - policyOut24);
     }
     document.getElementById('ot_hours').value = Math.round(total);
 }
