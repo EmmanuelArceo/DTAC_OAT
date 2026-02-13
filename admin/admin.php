@@ -605,16 +605,17 @@ if ($_SESSION['role'] === 'super_admin') {
                 </span>
             </div>
 
-            <div class="stat-card danger">
+        
+        <?php if ($_SESSION['role'] === 'super_admin'): ?>         <div class="stat-card danger">
                 <div class="stat-icon">
                     <i class="bi bi-person-badge-fill"></i>
                 </div>
                 <div class="stat-value"><?= $admin_count ?></div>
-                <div class="stat-label">Total Admins</div>
+                <div class="stat-label">Total Admins</div>   
                 <span class="stat-change positive">
                     <i class="bi bi-shield-check"></i> System Users
                 </span>
-            </div>
+            </div> <?php endif; ?>
         </div>
 
         <!-- Quick Actions -->
