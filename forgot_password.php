@@ -71,18 +71,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             return getHostByName(getHostName());
         }
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        // Use the host as provided (includes port when present)
         $host = $_SERVER['HTTP_HOST'];
 
-        // If running locally (localhost or 127.0.0.1 or ::1), use hostname or LAN IP
-        if (
-            $host === 'localhost' ||
-            $host === '127.0.0.1' ||
-            $host === '::1'
-        ) {
-            $host = getHostName(); // or use your LAN IP logic if you prefer
-        }
+        // Compute the application's base path (works for root or subdirectories like /oat/)
+        $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+        $basePath = ($scriptDir === '' || $scriptDir === '.') ? '/' : $scriptDir . '/';
 
-        $reset_link = "{$protocol}{$host}/OAT/reset_password.php?token=$token";
+        // Build absolute reset link reliably for localhost and hosted folders
+        $reset_link = $protocol . $host . $basePath . 'reset_password.php?token=' . urlencode($token);
+
+        // NOTE: if you want the emailed link to use a LAN IP instead of localhost so
+        // it can be opened from other devices, replace $host with getPreferredLanIp().
+        // Example: $host = getPreferredLanIp(); // then rebuild $reset_link from above.
         if (send_reset_email($email, $reset_link)) {
             $message = "<div class='alert alert-success text-center mb-3'>Reset link sent to your email.</div>";
         } else {
