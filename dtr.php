@@ -132,6 +132,10 @@ function calculateTotalHours($row, $user_id, $oat) {
             color: #fff;
             transform: translateY(-2px) scale(1.03);
         }
+        .btn-accent.active {
+            box-shadow: 0 6px 20px rgba(60,179,204,0.18);
+            transform: translateY(-2px) scale(1.02);
+        }
         #qr-reader {
             margin: 0 auto;
             display: none;
@@ -264,8 +268,11 @@ function calculateTotalHours($row, $user_id, $oat) {
         function startScan(action) {
             currentAction = action;
             qrReader.style.display = 'block';
-            scanTimeInBtn.disabled = true;
-            scanTimeOutBtn.disabled = true; // disable both while scanning
+            // disable only the active button so user can switch action while camera runs
+            scanTimeInBtn.disabled = (action === 'time_in');
+            scanTimeOutBtn.disabled = (action === 'time_out');
+            scanTimeInBtn.classList.toggle('active', action === 'time_in');
+            scanTimeOutBtn.classList.toggle('active', action === 'time_out');
             scanLabel.textContent = action === 'time_in' ? 'Scanning for Time In...' : 'Scanning for Time Out...';
             qrResult.innerHTML = '';
 
@@ -283,6 +290,8 @@ function calculateTotalHours($row, $user_id, $oat) {
                     qrResult.innerHTML = 'Unable to start camera.';
                     scanTimeInBtn.disabled = false;
                     scanTimeOutBtn.disabled = false;
+                    scanTimeInBtn.classList.remove('active');
+                    scanTimeOutBtn.classList.remove('active');
                     qrReader.style.display = 'none';
                     scanLabel.textContent = '';
                 });
@@ -308,7 +317,7 @@ function calculateTotalHours($row, $user_id, $oat) {
 
                 // Mark processing so we don't send duplicates; keep camera running
                 processing = true;
-                qrResult.innerHTML = 'Processing QR...';
+               
 
                 const endpoint = currentAction === 'time_out' ? 'time_out.php' : 'time_in.php';
                 const urlParams = `${endpoint}?code=${encodeURIComponent(code)}${sessionId ? '&session_id=' + encodeURIComponent(sessionId) : ''}&date=${encodeURIComponent(date)}`;
@@ -317,9 +326,10 @@ function calculateTotalHours($row, $user_id, $oat) {
                     .then(response => response.text())
                     .then(data => {
                         qrResult.innerHTML = data;
+                        const text = String(data).toLowerCase();
 
-                        // stop only when the server reports success (message contains "successful")
-                        if (typeof data === 'string' && data.toLowerCase().includes('successful')) {
+                        // SUCCESS -> stop + reload
+                        if (text.includes('successful')) {
                             if (html5QrCode && scannerStarted) {
                                 html5QrCode.stop().catch(()=>{}).then(() => {
                                     try { html5QrCode.clear(); } catch(e) {}
@@ -329,22 +339,64 @@ function calculateTotalHours($row, $user_id, $oat) {
                                     scanLabel.textContent = '';
                                     scanTimeInBtn.disabled = false;
                                     scanTimeOutBtn.disabled = false;
+                                    scanTimeInBtn.classList.remove('active');
+                                    scanTimeOutBtn.classList.remove('active');
                                     setTimeout(() => location.reload(), 1200);
                                 });
                             } else {
                                 setTimeout(() => location.reload(), 1200);
                             }
-                        } else {
-                            // not successful — continue scanning automatically
-                            processing = false;
-                            scanLabel.textContent = currentAction === 'time_in' ? 'Scanning for Time In...' : 'Scanning for Time Out...';
+                            return;
                         }
+
+                        // ALREADY TIMED IN (terminal) -> stop camera and keep server message
+                        if (currentAction === 'time_in' && text.includes('already') && (text.includes('time in') || text.includes('timed in'))) {
+                            // lock while stopping to avoid further detections
+                            processing = true;
+                            if (html5QrCode && scannerStarted) {
+                                html5QrCode.stop().catch(()=>{}).then(() => {
+                                    try { html5QrCode.clear(); } catch(e) {}
+                                    html5QrCode = null;
+                                    scannerStarted = false;
+                                    qrReader.style.display = 'none';
+                                    scanLabel.textContent = '';
+                                    scanTimeInBtn.disabled = false;
+                                    scanTimeOutBtn.disabled = false;
+                                    scanTimeInBtn.classList.remove('active');
+                                    scanTimeOutBtn.classList.remove('active');
+                                    processing = false;
+                                });
+                            } else {
+                                scanTimeInBtn.disabled = false;
+                                scanTimeOutBtn.disabled = false;
+                                scanTimeInBtn.classList.remove('active');
+                                scanTimeOutBtn.classList.remove('active');
+                                processing = false;
+                            }
+                            return;
+                        }
+
+                        // not successful — continue scanning automatically
+                        processing = false;
+                        scanLabel.textContent = currentAction === 'time_in' ? 'Scanning for Time In...' : 'Scanning for Time Out...';
+                        scanTimeInBtn.disabled = (currentAction === 'time_in');
+                        scanTimeOutBtn.disabled = (currentAction === 'time_out');
+                        scanTimeInBtn.classList.toggle('active', currentAction === 'time_in');
+                        scanTimeOutBtn.classList.toggle('active', currentAction === 'time_out');
                     })
                     .catch(() => {
+                        // preserve an "already timed in" server message — don't overwrite it
+                        const cur = (qrResult && qrResult.textContent) ? qrResult.textContent.toLowerCase() : '';
+                        if (cur.includes('already') && (cur.includes('time in') || cur.includes('timed in'))) {
+                            // ensure camera is stopped if it wasn't already
+                            if (html5QrCode && scannerStarted) { html5QrCode.stop().catch(()=>{}); scannerStarted = false; qrReader.style.display = 'none'; }
+                            processing = false;
+                            return;
+                        }
+
                         qrResult.innerHTML = 'Failed to process QR.';
                         processing = false; // allow further scans
                     });
-
             } catch (e) {
                 qrResult.innerHTML = 'Invalid QR code content.'; // keep scanning
             }
