@@ -179,11 +179,8 @@ function calculateTotalHours($row, $user_id, $oat) {
             <button id="scan-time-in-btn" class="btn-accent me-2">
                 <i class="bi bi-qr-code-scan me-2"></i>Scan Time In QR
             </button>
-            <button id="scan-time-out-btn" class="btn-accent me-2">
+            <button id="scan-time-out-btn" class="btn-accent">
                 <i class="bi bi-qr-code-scan me-2"></i>Scan Time Out QR
-            </button>
-            <button id="cancel-scan-btn" class="btn btn-outline-secondary" style="display:none; border-radius:10px; padding:10px 18px;">
-                Cancel
             </button>
         </div>
         <div id="scan-label" class="text-center fw-semibold mb-2" style="color:var(--accent-deep);"></div>
@@ -255,90 +252,46 @@ function calculateTotalHours($row, $user_id, $oat) {
     <script>
         const scanTimeInBtn = document.getElementById('scan-time-in-btn');
         const scanTimeOutBtn = document.getElementById('scan-time-out-btn');
-        const cancelScanBtn = document.getElementById('cancel-scan-btn');
         const qrReader = document.getElementById('qr-reader');
         const qrResult = document.getElementById('qr-result');
         const scanLabel = document.getElementById('scan-label');
 
         let html5QrCode = null;
         let currentAction = ''; // 'time_in' or 'time_out'
-        let startAttempt = 0;
-        let startRetryTimer = null;
-        let isCancelling = false;
-        let isScannerActive = false;
+        let processing = false;    // set while a valid QR is being processed
+        let scannerStarted = false;
 
-        function resetUIButtons() {
-            scanTimeInBtn.disabled = false;
-            scanTimeOutBtn.disabled = false;
-            cancelScanBtn.style.display = 'none';
-        }
+        function startScan(action) {
+            currentAction = action;
+            qrReader.style.display = 'block';
+            scanTimeInBtn.disabled = true;
+            scanTimeOutBtn.disabled = true; // disable both while scanning
+            scanLabel.textContent = action === 'time_in' ? 'Scanning for Time In...' : 'Scanning for Time Out...';
+            qrResult.innerHTML = '';
 
-        function ensureHtml5Instance() {
             if (!html5QrCode) html5QrCode = new Html5Qrcode('qr-reader');
-        }
 
-        function stopScannerAndCleanup() {
-            if (startRetryTimer) { clearTimeout(startRetryTimer); startRetryTimer = null; }
-            if (!html5QrCode) {
-                qrReader.style.display = 'none';
-                isScannerActive = false;
-                return Promise.resolve();
-            }
-            isScannerActive = false;
-            return html5QrCode.stop().catch(()=>{}).then(()=>{
-                try { html5QrCode.clear(); } catch(e) {}
-                html5QrCode = null;
-                qrReader.style.display = 'none';
-            });
-        }
-
-        async function attemptStartCamera() {
-            if (isCancelling) return;
-            ensureHtml5Instance();
-            startAttempt++;
-            scanLabel.textContent = `Starting camera... (attempt ${startAttempt})`;
-            try {
-                await html5QrCode.start(
+            if (!scannerStarted) {
+                html5QrCode.start(
                     { facingMode: 'environment' },
                     { fps: 10, qrbox: 250 },
-                    qrCodeMessage => { onScanSuccess(qrCodeMessage); },
-                    errorMessage => { /* per-frame decode errors — ignore */ }
-                );
-
-                // started successfully
-                startAttempt = 0;
-                isScannerActive = true;
-                scanLabel.textContent = currentAction === 'time_in' ? 'Scanning for Time In...' : 'Scanning for Time Out...';
-                qrResult.innerHTML = '';
-            } catch (err) {
-                console.warn('camera start failed, retrying', err);
-                scanLabel.textContent = 'Unable to start camera — retrying...';
-                if (!isCancelling) {
-                    startRetryTimer = setTimeout(attemptStartCamera, 1000);
-                } else {
-                    await stopScannerAndCleanup();
-                    resetUIButtons();
-                    qrResult.innerHTML = 'Scan cancelled.';
-                }
+                    qrCodeMessage => onQrScanned(qrCodeMessage),
+                    errorMessage => { /* per-frame decode errors ignored */ }
+                ).then(() => {
+                    scannerStarted = true;
+                }).catch(err => {
+                    qrResult.innerHTML = 'Unable to start camera.';
+                    scanTimeInBtn.disabled = false;
+                    scanTimeOutBtn.disabled = false;
+                    qrReader.style.display = 'none';
+                    scanLabel.textContent = '';
+                });
             }
         }
 
-        function onScanSuccess(qrCodeMessage) {
-            if (!isScannerActive) return; // avoid double-processing
-            isScannerActive = false;
-            if (startRetryTimer) { clearTimeout(startRetryTimer); startRetryTimer = null; }
-            scanLabel.textContent = '';
-            qrResult.innerHTML = 'Processing QR...';
-
-            // stop camera immediately (we'll still process server response)
-            if (html5QrCode) {
-                html5QrCode.stop().catch(()=>{}).then(()=>{
-                    try { html5QrCode.clear(); } catch(e) {}
-                    html5QrCode = null;
-                    qrReader.style.display = 'none';
-                    resetUIButtons();
-                });
-            }
+        function onQrScanned(qrCodeMessage) {
+            // If already processing a valid QR, ignore further detections
+            if (processing) return;
 
             try {
                 const url = new URL(qrCodeMessage);
@@ -347,64 +300,63 @@ function calculateTotalHours($row, $user_id, $oat) {
                 const sessionId = params.get('session_id');
                 const date = params.get('date');
 
-                if (!code || !sessionId || !date) {
-                    qrResult.innerHTML = 'Invalid QR code format.';
+                // Validate required params for the selected action
+                if (!code || !date || (currentAction === 'time_out' && !sessionId)) {
+                    qrResult.innerHTML = 'Invalid QR code format.'; // keep scanning
                     return;
                 }
 
+                // Mark processing so we don't send duplicates; keep camera running
+                processing = true;
+                qrResult.innerHTML = 'Processing QR...';
+
                 const endpoint = currentAction === 'time_out' ? 'time_out.php' : 'time_in.php';
-                fetch(`${endpoint}?code=${encodeURIComponent(code)}&session_id=${encodeURIComponent(sessionId)}&date=${encodeURIComponent(date)}`)
+                const urlParams = `${endpoint}?code=${encodeURIComponent(code)}${sessionId ? '&session_id=' + encodeURIComponent(sessionId) : ''}&date=${encodeURIComponent(date)}`;
+
+                fetch(urlParams)
                     .then(response => response.text())
                     .then(data => {
                         qrResult.innerHTML = data;
-                        setTimeout(() => location.reload(), 2000);
+
+                        // stop only when the server reports success (message contains "successful")
+                        if (typeof data === 'string' && data.toLowerCase().includes('successful')) {
+                            if (html5QrCode && scannerStarted) {
+                                html5QrCode.stop().catch(()=>{}).then(() => {
+                                    try { html5QrCode.clear(); } catch(e) {}
+                                    html5QrCode = null;
+                                    scannerStarted = false;
+                                    qrReader.style.display = 'none';
+                                    scanLabel.textContent = '';
+                                    scanTimeInBtn.disabled = false;
+                                    scanTimeOutBtn.disabled = false;
+                                    setTimeout(() => location.reload(), 1200);
+                                });
+                            } else {
+                                setTimeout(() => location.reload(), 1200);
+                            }
+                        } else {
+                            // not successful — continue scanning automatically
+                            processing = false;
+                            scanLabel.textContent = currentAction === 'time_in' ? 'Scanning for Time In...' : 'Scanning for Time Out...';
+                        }
                     })
                     .catch(() => {
                         qrResult.innerHTML = 'Failed to process QR.';
+                        processing = false; // allow further scans
                     });
+
             } catch (e) {
-                qrResult.innerHTML = 'Invalid QR code content.';
+                qrResult.innerHTML = 'Invalid QR code content.'; // keep scanning
             }
         }
 
-        function startScan(action) {
-            currentAction = action;
-            isCancelling = false;
-            qrReader.style.display = 'block';
-            scanTimeInBtn.disabled = true;
-            scanTimeOutBtn.disabled = true;
-            cancelScanBtn.style.display = 'inline-block';
-            scanLabel.textContent = currentAction === 'time_in' ? 'Initializing scanner...' : 'Initializing scanner...';
-
-            if (startRetryTimer) { clearTimeout(startRetryTimer); startRetryTimer = null; }
-            if (html5QrCode) {
-                html5QrCode.stop().catch(()=>{}).finally(() => {
-                    html5QrCode = null;
-                    attemptStartCamera();
-                });
-            } else {
-                attemptStartCamera();
-            }
-        }
-
-        function cancelScan() {
-            isCancelling = true;
-            if (startRetryTimer) { clearTimeout(startRetryTimer); startRetryTimer = null; }
-            stopScannerAndCleanup().then(() => {
-                resetUIButtons();
-                scanLabel.textContent = '';
-                qrResult.innerHTML = 'Scan cancelled.';
-            });
-        }
-
-        // stop scanner when user navigates away
+        // Ensure camera is stopped when leaving page
         window.addEventListener('beforeunload', () => {
-            if (html5QrCode) { html5QrCode.stop().catch(()=>{}); }
+            if (html5QrCode && scannerStarted) { html5QrCode.stop().catch(()=>{}); }
         });
 
         scanTimeInBtn.addEventListener('click', () => startScan('time_in'));
         scanTimeOutBtn.addEventListener('click', () => startScan('time_out'));
-        cancelScanBtn.addEventListener('click', cancelScan);
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
