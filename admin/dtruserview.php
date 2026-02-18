@@ -167,7 +167,7 @@ if ($role === 'super_admin') {
                             <td><?= htmlspecialchars($user['id']) ?></td>
                             <td>
                                 <?php
-                                    $img = '../assets/admin-avatar.png';
+                                    $img = '../uploads/noimg.png';
                                     if (!empty($user['profile_img']) && file_exists('../' . $user['profile_img'])) {
                                         $img = '../' . $user['profile_img'];
                                     }

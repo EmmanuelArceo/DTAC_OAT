@@ -9,7 +9,8 @@ include 'db.php';
 $dtr_id = $_GET['id'] ?? 0;
 $user_id = $_SESSION['user_id'] ?? 0;
 
-// Fetch DTR record
+
+// Fetch DTR record (include selfie_verified)
 $stmt = $oat->prepare("SELECT * FROM ojt_records WHERE id = ? AND user_id = ?");
 $stmt->bind_param("ii", $dtr_id, $user_id);
 $stmt->execute();
@@ -37,36 +38,61 @@ $policy_duration = $policy_time_out - $policy_time_in;
 
 $lateness = $time_in - $policy_time_in;
 if ($lateness > 0) {
+    $late_hours = floor($lateness / 3600);
+    $late_minutes = floor(($lateness % 3600) / 60);
+    $late_str = [];
+    if ($late_hours > 0) $late_str[] = $late_hours . ' hour' . ($late_hours > 1 ? 's' : '');
+    if ($late_minutes > 0) $late_str[] = $late_minutes . ' minute' . ($late_minutes > 1 ? 's' : '');
+    $late_str = $late_str ? implode(' and ', $late_str) : 'less than a minute';
+
     if ($lateness >= 3600) {
         $count_start = strtotime(date('Y-m-d H:00:00', $time_in) . ' +1 hour');
-        $late_note = "<span class='text-danger'><i class='bi bi-clock'></i> Late by " . floor($lateness/60) . " minutes, counted from next full hour.</span>";
+        $count_start_hour = date('g:i A', $count_start);
+        $late_note = "<span class='text-danger'><i class='bi bi-clock'></i> Late by $late_str, counted from next full hour (<b>counting starts at $count_start_hour</b>).</span>";
     } else {
         $count_start = $time_in;
-        $late_note = "<span class='text-danger'><i class='bi bi-clock'></i> On time or less than 1 hour late.</span>";
+        $late_note = "<span class='text-danger'><i class='bi bi-clock'></i> Late by $late_str.</span>";
     }
 } else {
     $count_start = $time_in;
     $late_note = "<span class='text-success'><i class='bi bi-check-circle'></i> On time.</span>";
 }
 
-// FIX: Regular end is counted start + policy duration
-$regular_end = $count_start + $policy_duration;
+// Only calculate regular hours if time_out is set
+if (!empty($dtr['time_out']) && $dtr['time_out'] !== '00:00:00') {
+    $regular_end = $count_start + $policy_duration;
+    $reg_hours = min($time_out, $regular_end) - $count_start;
+    $reg_hours = $reg_hours / 3600;
 
-$reg_hours = min($time_out, $regular_end) - $count_start;
-$reg_hours = $reg_hours / 3600;
 
-// Deduct lunch overlap (use same date as count_start)
-$lunch_start_ts = strtotime(date('Y-m-d', $count_start) . ' ' . $lunch_start);
-$lunch_end_ts = strtotime(date('Y-m-d', $count_start) . ' ' . $lunch_end);
-$overlap = max(0, min($time_out, $lunch_end_ts) - max($count_start, $lunch_start_ts));
-$lunch_note = $overlap > 0
-    ? "<span class='text-warning'><i class='bi bi-box-arrow-in-down'></i> Lunch break deducted: " . number_format($overlap/3600, 2) . " hour(s).</span>"
-    : "<span class='text-success'><i class='bi bi-check-circle'></i> No lunch deduction.</span>";
+    $lunch_start_ts = strtotime(date('Y-m-d', $count_start) . ' ' . $lunch_start);
+    $lunch_end_ts = strtotime(date('Y-m-d', $count_start) . ' ' . $lunch_end);
+    // Always check for overlap if any part of work session is within lunch
+    if ($count_start < $lunch_end_ts && $time_out > $lunch_start_ts) {
+        $deduct_start = max($count_start, $lunch_start_ts);
+        $deduct_end = min($time_out, $lunch_end_ts);
+        $overlap = max(0, $deduct_end - $deduct_start);
+        if ($overlap > 0) {
+            $lunch_note = "<span class='text-warning'><i class='bi bi-box-arrow-in-down'></i> Lunch break deducted: ";
+            $lunch_note .= date('g:i A', $deduct_start) . " – " . date('g:i A', $deduct_end);
+            $lunch_note .= " (" . number_format($overlap/3600, 2) . " hour(s))</span>";
+            $reg_hours -= $overlap / 3600;
+        } else {
+            $lunch_note = "<span class='text-success'><i class='bi bi-check-circle'></i> No lunch deduction.</span>";
+        }
+    } else {
+        $lunch_note = "<span class='text-success'><i class='bi bi-check-circle'></i> No lunch deduction.</span>";
+    }
 
-$reg_hours -= $overlap / 3600;
+    $ot_hours = (float)($dtr['ot_hours'] ?? 0);
+    $total_hours = max(0, round($reg_hours + $ot_hours, 2));
+} else {
+    $reg_hours = 0;
+    $lunch_note = "<span class='text-muted'><i class='bi bi-dash-circle'></i> Waiting for time out to compute lunch deduction.</span>";
+    $ot_hours = (float)($dtr['ot_hours'] ?? 0);
+    $total_hours = $ot_hours;
+}
 
-$ot_hours = (float)($dtr['ot_hours'] ?? 0);
-$total_hours = max(0, round($reg_hours + $ot_hours, 2));
 ?>
 
 <!DOCTYPE html>
@@ -92,6 +118,14 @@ $total_hours = max(0, round($reg_hours + $ot_hours, 2));
                 <div class="card-header bg-primary text-white">
                     <h4 class="mb-0"><i class="bi bi-calendar-check me-2"></i> DTR Detail for <?= htmlspecialchars($dtr['date']) ?></h4>
                 </div>
+                <?php if (empty($dtr['selfie_verified']) || $dtr['selfie_verified'] != 1): ?>
+                <div class="alert alert-danger d-flex align-items-center gap-2 m-0" role="alert" style="border-radius:0;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2" viewBox="0 0 16 16" role="img" aria-label="Unverified">
+                        <path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.707c.89 0 1.438-.99.982-1.767L8.982 1.566zm-.982 4.905a.905.905 0 1 1 1.81 0l-.35 3.507a.552.552 0 0 1-1.11 0l-.35-3.507zm.002 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                    </svg>
+                    <div><strong>This DTR record was flagged as Face Image did not Match.</strong> Please contact your supervisor if you believe this is a mistake.</div>
+                </div>
+                <?php endif; ?>
                 <div class="card-body">
                     <table class="table table-bordered mb-4">
                         <tr>
@@ -149,7 +183,7 @@ $total_hours = max(0, round($reg_hours + $ot_hours, 2));
                     <ul class="breakdown-list list-unstyled">
                         <li><?= $late_note ?></li>
                         <li><?= $lunch_note ?></li>
-                        <li><i class="bi bi-clock-history"></i> Regular hours counted: <strong><?= number_format($reg_hours, 2) ?> hour(s)</strong></li>
+                        <li><i class="bi bi-clock-history"></i> Regular hours counted: <strong><?= $reg_hours > 0 ? number_format($reg_hours, 2) . ' hour(s)' : '--' ?></strong></li>
                         <li><i class="bi bi-plus-circle"></i> Overtime hours: <strong><?= $ot_hours ?> hour(s)</strong></li>
                         <li><i class="bi bi-check2-all"></i> <strong>Total hours: <?= number_format($total_hours, 2) ?> hour(s)</strong></li>
                     </ul>

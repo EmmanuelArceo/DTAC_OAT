@@ -24,6 +24,22 @@ $full_name = ($user_info['fname'] ?? '') . ' ' .
 $position = $user_info['position'] ?? '';
 $role = $_SESSION['role'] ?? 'ojt';
 
+// fetch assigned time-group for this user (prefer these values for display/calcs)
+$stmt_group = $oat->prepare("
+    SELECT tg.time_in, tg.time_out, tg.lunch_start, tg.lunch_end
+    FROM user_time_groups utg
+    JOIN time_groups tg ON utg.group_id = tg.id
+    WHERE utg.user_id = ? LIMIT 1
+");
+$stmt_group->bind_param("i", $user_id);
+$stmt_group->execute();
+$group_policy = $stmt_group->get_result()->fetch_assoc();
+$user_group_time_in     = $group_policy['time_in'] ?? null;
+$user_group_time_out    = $group_policy['time_out'] ?? null;
+$user_group_lunch_start = $group_policy['lunch_start'] ?? null;
+$user_group_lunch_end   = $group_policy['lunch_end'] ?? null;
+$stmt_group->close();
+
 // Fix profile image path
 $img = 'uploads/noimg.png';
 if (!empty($user_info['profile_img']) && file_exists($user_info['profile_img'])) {
@@ -39,12 +55,19 @@ $required_hours = (float)($req['required_hours'] ?? 0);
 
 // Fetch completed hours (only for valid time_out records) with policy adjustments
 $total_completed = 0;
-$stmt = $oat->prepare("SELECT time_in, time_out, time_in_policy, time_out_policy, ot_hours, lunch_start, lunch_end FROM ojt_records WHERE user_id = ? AND time_out IS NOT NULL AND time_out != '00:00:00' AND time_out > time_in");
+$stmt = $oat->prepare("SELECT time_in, time_out, time_in_policy, time_out_policy, ot_hours, lunch_start, lunch_end, selfie_verified FROM ojt_records WHERE user_id = ? AND time_out IS NOT NULL AND time_out != '00:00:00' AND time_out > time_in");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $records = $stmt->get_result();
 while ($row = $records->fetch_assoc()) {
-    $result = calculate_session_hours($row, $row['time_in_policy'], $row['time_out_policy'], $row['lunch_start'], $row['lunch_end'], $user_id, $oat);
+    if ((int)($row['selfie_verified'] ?? 0) !== 1) continue; // Only count if selfie_verified is 1
+    // prefer user's time-group policy when available, then record's policy, then defaults
+    $policy_in   = $user_group_time_in     ?? ($row['time_in_policy']  ?? '08:00:00');
+    $policy_out  = $user_group_time_out    ?? ($row['time_out_policy'] ?? '17:00:00');
+    $lunch_s     = $user_group_lunch_start ?? ($row['lunch_start']      ?? '12:00:00');
+    $lunch_e     = $user_group_lunch_end   ?? ($row['lunch_end']        ?? '13:00:00');
+
+    $result = calculate_session_hours($row, $policy_in, $policy_out, $lunch_s, $lunch_e, $user_id, $oat);
     $total_completed += $result['regular'] + $result['ot'];
 }
 $completed_hours = floor($total_completed);
@@ -52,7 +75,7 @@ $remaining_hours = max(0, $required_hours - $completed_hours);
 $progress = $required_hours > 0 ? min(100, round(($completed_hours / $required_hours) * 100)) : 0;
 
 // recent sessions (last 5) using prepared statement
-$stmt = $oat->prepare("SELECT id, date, time_in, time_out, ot_hours, time_in_policy, time_out_policy, lunch_start, lunch_end FROM ojt_records WHERE user_id = ? ORDER BY date DESC, time_in DESC LIMIT 5");
+$stmt = $oat->prepare("SELECT id, date, time_in, time_out, ot_hours, time_in_policy, time_out_policy, lunch_start, lunch_end, selfie_verified FROM ojt_records WHERE user_id = ? ORDER BY date DESC, time_in DESC LIMIT 5");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $recent = $stmt->get_result();
@@ -293,67 +316,86 @@ $recent = $stmt->get_result();
                                     <a href="dtrdetail.php?id=<?= urlencode($r['id']) ?>" style="text-decoration:underline;color:var(--accent-deep);">
                                         <?= htmlspecialchars($r['date']) ?>
                                     </a>
+                                    <?php if (empty($r['selfie_verified']) || $r['selfie_verified'] != 1): ?>
+                                        <span title="Selfie not verified" style="color:#e63946; margin-left:4px; vertical-align:middle;">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-exclamation-triangle-fill" viewBox="0 0 16 16" style="vertical-align:middle;">
+                                              <path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.707c.89 0 1.438-.99.982-1.767L8.982 1.566zm-.982 4.905a.905.905 0 1 1 1.81 0l-.35 3.507a.552.552 0 0 1-1.11 0l-.35-3.507zm.002 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                                            </svg>
+                                        </span>
+                                    <?php endif; ?>
                                 </td>
-                                <td>
-                                    <?php
-                                        if ($r['time_in']) {
-                                            $time_in_ts = strtotime($r['time_in']);
-                                            $policy_in = $r['time_in_policy'] ?? '08:00:00';
-                                            $policy_in_time_ts = strtotime(date('Y-m-d', $time_in_ts) . ' ' . $policy_in);
-                                            $is_late = $time_in_ts > $policy_in_time_ts;
-                                            $time_in_display = date('g:i A', $time_in_ts);
-                                            if ($is_late) {
-                                                echo '<span style="color: red;">' . htmlspecialchars($time_in_display) . '</span>';
-                                            } else {
-                                                echo htmlspecialchars($time_in_display);
-                                            }
+                            <td>
+                                <?php
+                                    // treat explicit "00:00:00" as missing; prefer user time-group policy for lateness check
+                                    if (!empty($r['time_in']) && $r['time_in'] !== '00:00:00') {
+                                        $time_in_ts = strtotime($r['time_in']);
+                                        $policy_in = $user_group_time_in ?? ($r['time_in_policy'] ?? '08:00:00');
+                                        $policy_in_time_ts = strtotime(date('Y-m-d', $time_in_ts) . ' ' . $policy_in);
+                                        $is_late = $time_in_ts > $policy_in_time_ts;
+                                        // show without leading zero and UPPERCASE AM/PM (e.g. 2:25PM)
+                                        $time_in_display = date('g:iA', $time_in_ts);
+                                        if ($is_late) {
+                                            echo '<span style="color: red;">' . htmlspecialchars($time_in_display) . '</span>';
                                         } else {
-                                            echo '<span style="color:var(--muted)">--</span>';
+                                            echo htmlspecialchars($time_in_display);
                                         }
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php
-                                        if ($r['time_out'] && $r['time_out'] !== '00:00:00') {
-                                            echo date('g:i A', strtotime($r['time_out']));
-                                        } else {
-                                            echo '<span style="color:var(--muted)">--</span>';
-                                        }
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php
-                                        if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
-                                            $result = calculate_session_hours($r, $r['time_in_policy'], $r['time_out_policy'], $r['lunch_start'], $r['lunch_end'], $user_id, $oat);
-                                            $reg = $result['regular'];
-                                            echo floor($reg) . ' h';
-                                        } else {
-                                            echo '<span style="color:var(--muted)">--</span>';
-                                        }
-                                    ?>
-                                </td>
+                                    } else {
+                                        echo '<span style="color:var(--muted)">--</span>';
+                                    }
+                                ?>
+                            </td>
+                            <td>
+                                <?php
+                                    if (!empty($r['time_out']) && $r['time_out'] !== '00:00:00') {
+                                        echo date('g:iA', strtotime($r['time_out']));
+                                    } else {
+                                        echo '<span style="color:var(--muted)">--</span>';
+                                    }
+                                ?>
+                            </td>
+                            <td>
+                                <?php
+                                    if (!empty($r['time_in']) && $r['time_in'] !== '00:00:00' && !empty($r['time_out']) && $r['time_out'] !== '00:00:00') {
+                                        $policy_in   = $user_group_time_in     ?? ($r['time_in_policy']  ?? '08:00:00');
+                                        $policy_out  = $user_group_time_out    ?? ($r['time_out_policy'] ?? '17:00:00');
+                                        $lunch_s     = $user_group_lunch_start ?? ($r['lunch_start']      ?? '12:00:00');
+                                        $lunch_e     = $user_group_lunch_end   ?? ($r['lunch_end']        ?? '13:00:00');
 
-                                <td>
-                                    <?php
-                                        if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
-                                            $ot_hours = (float)($r['ot_hours'] ?? 0);
-                                            echo floor($ot_hours) . ' h';
-                                        } else {
-                                            echo '<span style="color:var(--muted)">--</span>';
-                                        }
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php
-                                        if ($r['time_in'] && $r['time_out'] && $r['time_out'] !== '00:00:00') {
-                                            $result = calculate_session_hours($r, $r['time_in_policy'], $r['time_out_policy'], $r['lunch_start'], $r['lunch_end'], $user_id, $oat);
-                                            echo $result['total'] . ' h';
-                                        } else {
-                                            echo '<span style="color:var(--muted)">--</span>';
-                                        }
-                                    ?>
-                                </td>
-                            </tr>
+                                        $result = calculate_session_hours($r, $policy_in, $policy_out, $lunch_s, $lunch_e, $user_id, $oat);
+                                        $reg = $result['regular'];
+                                        echo floor($reg) . ' h';
+                                    } else {
+                                        echo '<span style="color:var(--muted)">--</span>';
+                                    }
+                                ?>
+                            </td>
+
+                            <td>
+                                <?php
+                                    if (!empty($r['time_in']) && $r['time_in'] !== '00:00:00' && !empty($r['time_out']) && $r['time_out'] !== '00:00:00') {
+                                        $ot_hours = (float)($r['ot_hours'] ?? 0);
+                                        echo floor($ot_hours) . ' h';
+                                    } else {
+                                        echo '<span style="color:var(--muted)">--</span>';
+                                    }
+                                ?>
+                            </td>
+                            <td>
+                                <?php
+                                    if (!empty($r['time_in']) && $r['time_in'] !== '00:00:00' && !empty($r['time_out']) && $r['time_out'] !== '00:00:00') {
+                                        $policy_in   = $user_group_time_in     ?? ($r['time_in_policy']  ?? '08:00:00');
+                                        $policy_out  = $user_group_time_out    ?? ($r['time_out_policy'] ?? '17:00:00');
+                                        $lunch_s     = $user_group_lunch_start ?? ($r['lunch_start']      ?? '12:00:00');
+                                        $lunch_e     = $user_group_lunch_end   ?? ($r['lunch_end']        ?? '13:00:00');
+
+                                        $result = calculate_session_hours($r, $policy_in, $policy_out, $lunch_s, $lunch_e, $user_id, $oat);
+                                        echo $result['total'] . ' h';
+                                    } else {
+                                        echo '<span style="color:var(--muted)">--</span>';
+                                    }
+                                ?>
+                            </td>
+                        </tr>
                         <?php endwhile; ?>
                     </tbody>
                 </table>

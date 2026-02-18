@@ -24,20 +24,31 @@ if (!$ojt) {
     exit;
 }
 
-// Fetch DTR records using prepared statement (include policy fields)
-$stmt = $oat->prepare("SELECT date, time_in, time_out, time_in_policy, time_out_policy, ot_hours, lunch_start, lunch_end FROM ojt_records WHERE user_id = ? ORDER BY date DESC");
+// prepare avatar path + attributes (use actual file if exists, otherwise default)
+$avatar = '../uploads/noimg.png';
+if (!empty($ojt['profile_img']) && file_exists(__DIR__ . '/../' . $ojt['profile_img'])) {
+    $avatar = '../' . $ojt['profile_img'];
+}
+$avatar_src = htmlspecialchars($avatar . '?t=' . time());
+$avatar_alt = htmlspecialchars(trim(($ojt['fname'] ?? '') . ' ' . ($ojt['lname'] ?? '')));
+
+// Fetch DTR records using prepared statement (include policy fields and selfie_verified)
+$stmt = $oat->prepare("SELECT id, date, time_in, time_out, time_in_policy, time_out_policy, ot_hours, lunch_start, lunch_end, selfie_verified FROM ojt_records WHERE user_id = ? ORDER BY date DESC");
 $stmt->bind_param("i", $ojt_id);
 $stmt->execute();
 $dtr_query = $stmt->get_result();
 $stmt->close();
 
 function calculate_session_hours($row, $user_policy_time_in, $user_policy_time_out, $user_lunch_start, $user_lunch_end, $user_id, $oat) {
-    if (!$row['time_in'] || !$row['time_out'] || $row['time_out'] === '00:00:00') {
+    // treat explicit "00:00:00" as missing for both time_in/time_out
+    if (empty($row['time_in']) || $row['time_in'] === '00:00:00' || empty($row['time_out']) || $row['time_out'] === '00:00:00') {
         return ['regular' => 0, 'ot' => 0, 'total' => 0];
     }
 
     $time_in = strtotime($row['time_in']);
     $time_out = strtotime($row['time_out']);
+    // handle overnight sessions (time_out on next day)
+    if ($time_out <= $time_in) $time_out += 24 * 3600;
 
     // Calculate policy times on the same date as time_in
     $policy_in_time = strtotime(date('Y-m-d', $time_in) . ' ' . $user_policy_time_in);
@@ -70,6 +81,15 @@ function calculate_session_hours($row, $user_policy_time_in, $user_policy_time_o
 
     $total_hours = max(0, floor($reg_hours + $ot_hours));
     return ['regular' => max(0, $reg_hours), 'ot' => $ot_hours, 'total' => $total_hours];
+}
+
+// unified time formatter (no leading zero, UPPER AM/PM; treats '00:00:00' as empty)
+if (!function_exists('format_time')) {
+    function format_time($t) {
+        if (empty($t) || $t === '00:00:00') return '--';
+        $ts = strtotime($t);
+        return $ts ? date('g:iA', $ts) : '--';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -135,7 +155,7 @@ function calculate_session_hours($row, $user_policy_time_in, $user_policy_time_o
 <body>
     <div class="glass">
         <div class="d-flex align-items-center mb-4">
-            <img src="<?= !empty($ojt['profile_img']) ? '../' . htmlspecialchars($ojt['profile_img'] . '?t=' . time()) : '../uploads/noimg.png' ?>" class="profile-img" alt="Profile">
+            <img src="<?= $avatar_src ?>" class="profile-img" alt="<?= $avatar_alt ?>">
             <div>
                 <div class="dtr-title"><?= htmlspecialchars($ojt['fname'] . ' ' . $ojt['lname']) ?></div>
                 <div class="text-muted">@<?= htmlspecialchars($ojt['username']) ?></div>
@@ -162,11 +182,24 @@ function calculate_session_hours($row, $user_policy_time_in, $user_policy_time_o
                     <?php if ($dtr_query && $dtr_query->num_rows > 0): ?>
                         <?php while ($row = $dtr_query->fetch_assoc()): ?>
                             <tr>
-                                <td><?= htmlspecialchars($row['date']) ?></td>
-                                <td class="text-center"><?= $row['time_in'] ? date("g:i A", strtotime($row['time_in'])) : '--' ?></td>
-                                <td class="text-center">
-                                    <?= ($row['time_out'] && $row['time_out'] !== '00:00:00') ? date("g:i A", strtotime($row['time_out'])) : '--' ?>
+                                <td>
+                                    <?php if (!empty($row['id'])): ?>
+                                        <a href="verifydtr.php?id=<?= (int)$row['id'] ?>" class="text-decoration-underline">
+                                            <?= htmlspecialchars($row['date']) ?>
+                                        </a>
+                                    <?php else: ?>
+                                        <?= htmlspecialchars($row['date']) ?>
+                                    <?php endif; ?>
+                                    <?php if (empty($row['selfie_verified']) || $row['selfie_verified'] != 1): ?>
+                                        <span title="Selfie not verified" style="color:#e63946; margin-left:4px; vertical-align:middle;">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" class="bi bi-exclamation-triangle-fill" viewBox="0 0 16 16" style="vertical-align:middle;">
+                                              <path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.707c.89 0 1.438-.99.982-1.767L8.982 1.566zm-.982 4.905a.905.905 0 1 1 1.81 0l-.35 3.507a.552.552 0 0 1-1.11 0l-.35-3.507zm.002 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                                            </svg>
+                                        </span>
+                                    <?php endif; ?>
                                 </td>
+                                <td class="text-center"><?= format_time($row['time_in']) ?></td>
+                                <td class="text-center"><?= format_time($row['time_out']) ?></td>
                                 <td class="text-center">
                                     <?php
                                     if ($row['time_in'] && $row['time_out'] && $row['time_out'] !== '00:00:00') {
