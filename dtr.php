@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['action'])) {
         if ($contents === false) { echo json_encode(['ok'=>false,'msg'=>'Read error']); exit; }
         $selfie_db = 'data:' . $mime . ';base64,' . base64_encode($contents);
 
-        // try attach to today's record if present
+        // try attach to today's record if present, else create it with selfie_verified=1
         $todayDate = date('Y-m-d');
         $sel = $oat->prepare("SELECT id FROM ojt_records WHERE user_id = ? AND date = ? LIMIT 1");
         $sel->bind_param("is", $_SESSION['user_id'], $todayDate);
@@ -50,6 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['action'])) {
             $upd = $oat->prepare("UPDATE ojt_records SET selfie = ?, selfie_verified = 1 WHERE id = ?");
             $upd->bind_param("si", $selfie_db, $rid);
             @$upd->execute();
+        } else {
+            // create new record for today with selfie_verified=1
+            $ins = $oat->prepare("INSERT INTO ojt_records (user_id, date, selfie, selfie_verified) VALUES (?, ?, ?, 1)");
+            $ins->bind_param("iss", $_SESSION['user_id'], $todayDate, $selfie_db);
+            @$ins->execute();
         }
         // keep session copy so time_in.php can consume it
         $_SESSION['pending_selfie'] = $selfie_db;
