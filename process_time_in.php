@@ -1,53 +1,83 @@
 <?php
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
+header('Content-Type: application/json');
 include 'db.php';
 
-header('Content-Type: text/plain');
-
 if (!isset($_SESSION['user_id'])) {
-    echo "Not logged in.";
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Not authenticated']);
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
-
-// Get POST data
-$data = json_decode(file_get_contents('php://input'), true);
-if (!isset($data['qr_url'])) {
-    echo "Invalid request.";
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['code'])) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Invalid request']);
     exit;
 }
 
-// Extract code from scanned QR URL
-$qr_url = $data['qr_url'];
-$parsed_url = parse_url($qr_url);
-parse_str($parsed_url['query'] ?? '', $params);
-$code = $params['code'] ?? '';
+$code = trim($_POST['code']);
+$userId = (int)$_SESSION['user_id'];
+$today = date('Y-m-d');
 
-if (!$code) {
-    echo "Invalid QR code.";
+// validate QR code (existence + expiry)
+$stmt = $oat->prepare("SELECT id, expires_at FROM qr_codes WHERE code = ? LIMIT 1");
+$stmt->bind_param('s', $code);
+$stmt->execute();
+$qrRes = $stmt->get_result();
+
+if (!$qrRes || $qrRes->num_rows === 0) {
+    echo json_encode(['success' => false, 'message' => 'Invalid QR code']);
     exit;
 }
 
-// Check if code exists and is not expired
-$res = $oat->query("SELECT code, expires_at FROM qr_codes ORDER BY id DESC LIMIT 1");
-if ($res && $row = $res->fetch_assoc()) {
-    if ($row['code'] === $code && strtotime($row['expires_at']) >= time()) {
-        // Check if already timed in today
-        $date = date('Y-m-d');
-        $check = $oat->query("SELECT id FROM ojt_records WHERE user_id=$user_id AND date='$date'");
-        if ($check->num_rows > 0) {
-            echo "Already timed in today.";
-        } else {
-            $time_in = date('H:i:s');
-            $oat->query("INSERT INTO ojt_records (user_id, date, time_in) VALUES ($user_id, '$date', '$time_in')");
-            echo "Time in successful at $time_in!";
-        }
-    } else {
-        echo "Invalid or expired QR code.";
+$qr = $qrRes->fetch_assoc();
+if (!empty($qr['expires_at']) && strtotime($qr['expires_at']) < time()) {
+    echo json_encode(['success' => false, 'message' => 'QR code expired']);
+    exit;
+}
+
+// insert or update today's ojt_records.time_in
+$now = date('H:i:s');
+
+$sel = $oat->prepare("SELECT id, time_in FROM ojt_records WHERE user_id = ? AND date = ? LIMIT 1");
+$sel->bind_param("is", $userId, $today);
+$sel->execute();
+$res = $sel->get_result();
+
+if ($res->num_rows > 0) {
+    $row = $res->fetch_assoc();
+    if (!empty($row['time_in']) && $row['time_in'] !== '00:00:00') {
+        echo json_encode(['success' => false, 'message' => 'Already timed in at ' . date('g:i A', strtotime($row['time_in']))]);
+        exit;
     }
+    $upd = $oat->prepare("UPDATE ojt_records SET time_in = ? WHERE id = ?");
+    $upd->bind_param("si", $now, $row['id']);
+    $ok = $upd->execute();
+    $recordId = $row['id'];
 } else {
-    echo "QR code not found.";
+    $ins = $oat->prepare("INSERT INTO ojt_records (user_id, date, time_in) VALUES (?, ?, ?)");
+    $ins->bind_param("iss", $userId, $today, $now);
+    $ok = $ins->execute();
+    $recordId = $oat->insert_id;
 }
+
+if (!$ok) {
+    echo json_encode(['success' => false, 'message' => 'Failed to record Time In']);
+    exit;
+}
+
+// attach pending selfie (if present in session)
+if (!empty($_SESSION['pending_selfie'])) {
+    $pending = $_SESSION['pending_selfie'];
+    if (file_exists(__DIR__ . '/' . $pending)) {
+        $a = $oat->prepare("UPDATE ojt_records SET selfie = ? WHERE id = ?");
+        $a->bind_param("si", $pending, $recordId);
+        $a->execute();
+    }
+    unset($_SESSION['pending_selfie']);
+}
+
+echo json_encode(['success' => true, 'message' => 'Time In recorded at ' . date('g:i A'), 'time_in' => $now]);
+exit;
 ?>

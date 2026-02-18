@@ -13,15 +13,24 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// Fetch DTR records for this OJT using prepared statement (include policy fields and id)
-$stmt = $oat->prepare("SELECT id, date, time_in, time_out, remarks, time_in_policy, time_out_policy, ot_hours, lunch_start, lunch_end FROM ojt_records WHERE user_id = ? ORDER BY date DESC");
+// Fetch DTR records for this OJT using prepared statement (include selfie)
+$stmt = $oat->prepare("SELECT id, date, time_in, time_out, remarks, time_in_policy, time_out_policy, ot_hours, lunch_start, lunch_end, selfie FROM ojt_records WHERE user_id = ? ORDER BY date DESC");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $dtr_query = $stmt->get_result();
 
+// Fetch today's selfie (if any)
+$today = date('Y-m-d');
+$stmt2 = $oat->prepare("SELECT id, selfie FROM ojt_records WHERE user_id = ? AND date = ? LIMIT 1");
+$stmt2->bind_param("is", $user_id, $today);
+$stmt2->execute();
+$today_res = $stmt2->get_result();
+$today_selfie = $today_res->num_rows ? $today_res->fetch_assoc()['selfie'] : null;
+
 // Function to calculate total hours (updated for per-record policies and accurate deductions, now with floor for whole hours)
 function calculateTotalHours($row, $user_id, $oat) {
-    if (!$row['time_in'] || !$row['time_out'] || $row['time_out'] === '00:00:00') {
+    // treat '00:00:00' as missing for both time_in and time_out
+    if (!$row['time_in'] || $row['time_in'] === '00:00:00' || !$row['time_out'] || $row['time_out'] === '00:00:00') {
         return ['total' => '', 'ot' => ''];
     }
 
@@ -180,13 +189,45 @@ function calculateTotalHours($row, $user_id, $oat) {
             <!-- Note: Schedule display removed as it's now per-record -->
         </div>
         <div class="dtr-actions justify-content-center flex-row">
-            <button id="scan-time-in-btn" class="btn-accent me-2">
-                <i class="bi bi-qr-code-scan me-2"></i>Scan Time In QR
-            </button>
+            <?php if (!$today_selfie): ?>
+                <div id="selfie-capture" class="text-center mb-3">
+                    <video id="selfie-video" width="240" height="180" autoplay style="border-radius:8px;border:1px solid #ccc;"></video>
+                    <br>
+                    <button id="capture-btn" class="btn-accent mt-2">Take Selfie</button>
+                    <canvas id="selfie-canvas" width="240" height="180" style="display:none;"></canvas>
+                    <form id="selfie-form" method="post" style="display:none;">
+                        <input type="hidden" name="selfie_data" id="selfie-data">
+                        <button type="submit" class="btn-accent mt-2">Submit Selfie</button>
+                    </form>
+                </div>
+                <button id="scan-time-in-btn" class="btn-accent me-2" disabled>
+                    <i class="bi bi-qr-code-scan me-2"></i>Scan Time In QR
+                </button>
+            <?php else: ?>
+                <button id="scan-time-in-btn" class="btn-accent me-2">
+                    <i class="bi bi-qr-code-scan me-2"></i>Scan Time In QR
+                </button>
+            <?php endif; ?>
             <button id="scan-time-out-btn" class="btn-accent">
                 <i class="bi bi-qr-code-scan me-2"></i>Scan Time Out QR
             </button>
         </div>
+        <?php
+        // Handle real-time selfie capture and save to ojt_records
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['selfie_data'])) {
+            $data = $_POST['selfie_data'];
+            $filename = 'selfie_' . $user_id . '_' . $today . '.png';
+            $target = 'uploads/' . $filename;
+            $img = str_replace('data:image/png;base64,', '', $data);
+            $img = str_replace(' ', '+', $img);
+            file_put_contents($target, base64_decode($img));
+            // Save selfie path to DB
+            $stmt = $oat->prepare("UPDATE ojt_records SET selfie=? WHERE user_id=? AND date=?");
+            $stmt->bind_param("sis", $target, $user_id, $today);
+            $stmt->execute();
+            echo "<script>location.reload();</script>";
+        }
+        ?>
         <div id="scan-label" class="text-center fw-semibold mb-2" style="color:var(--accent-deep);"></div>
         <div id="qr-reader"></div>
         <div id="qr-result"></div>
@@ -214,12 +255,13 @@ function calculateTotalHours($row, $user_id, $oat) {
                                 </td>
                                 <td class="text-center">
                                     <?php
-                                        if ($row['time_in']) {
+                                        // treat database '00:00:00' as empty (same as time_out)
+                                        if ($row['time_in'] && $row['time_in'] !== '00:00:00') {
                                             $time_in_ts = strtotime($row['time_in']);
                                             $policy_in = $row['time_in_policy'] ?? '08:00:00';
                                             $policy_in_time_ts = strtotime(date('Y-m-d', $time_in_ts) . ' ' . $policy_in);
                                             $is_late = $time_in_ts > $policy_in_time_ts; // Fixed: > for exactly on time
-                                            $time_in_display = date('h:i A', $time_in_ts);
+                                            $time_in_display = date('g:i A', $time_in_ts);
                                             if ($is_late) {
                                                 echo '<span style="color: red;">' . htmlspecialchars($time_in_display) . '</span>';
                                             } else {
