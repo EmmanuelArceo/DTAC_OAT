@@ -191,18 +191,18 @@ function calculateTotalHours($row, $user_id, $oat) {
         <div class="dtr-actions justify-content-center flex-row">
             <?php if (!$today_selfie): ?>
                 <div id="selfie-capture" class="text-center mb-3">
-                    <video id="selfie-video" width="240" height="180" autoplay style="border-radius:8px;border:1px solid #ccc;"></video>
-                    <br>
-                    <button id="capture-btn" class="btn-accent mt-2">Take Selfie</button>
-                    <canvas id="selfie-canvas" width="240" height="180" style="display:none;"></canvas>
-                    <form id="selfie-form" method="post" style="display:none;">
-                        <input type="hidden" name="selfie_data" id="selfie-data">
-                        <button type="submit" class="btn-accent mt-2">Submit Selfie</button>
-                    </form>
-                </div>
-                <button id="scan-time-in-btn" class="btn-accent me-2" disabled>
-                    <i class="bi bi-qr-code-scan me-2"></i>Scan Time In QR
-                </button>
+                    <video id="selfie-video" width="240" height="180" autoplay playsinline muted style="border-radius:8px;border:1px solid #ccc;"></video>
+                     <br>
+                     <button id="capture-btn" class="btn-accent mt-2">Take Selfie</button>
+                     <canvas id="selfie-canvas" width="240" height="180" style="display:none;"></canvas>
+                     <form id="selfie-form" method="post" style="display:none;">
+                         <input type="hidden" name="selfie_data" id="selfie-data">
+                         <button type="submit" class="btn-accent mt-2">Submit Selfie</button>
+                     </form>
+                 </div>
+                 <button id="scan-time-in-btn" class="btn-accent me-2" disabled>
+                     <i class="bi bi-qr-code-scan me-2"></i>Scan Time In QR
+                 </button>
             <?php else: ?>
                 <button id="scan-time-in-btn" class="btn-accent me-2">
                     <i class="bi bi-qr-code-scan me-2"></i>Scan Time In QR
@@ -216,16 +216,45 @@ function calculateTotalHours($row, $user_id, $oat) {
         // Handle real-time selfie capture and save to ojt_records
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['selfie_data'])) {
             $data = $_POST['selfie_data'];
-            $filename = 'selfie_' . $user_id . '_' . $today . '.png';
-            $target = 'uploads/' . $filename;
-            $img = str_replace('data:image/png;base64,', '', $data);
-            $img = str_replace(' ', '+', $img);
-            file_put_contents($target, base64_decode($img));
-            // Save selfie path to DB
-            $stmt = $oat->prepare("UPDATE ojt_records SET selfie=? WHERE user_id=? AND date=?");
-            $stmt->bind_param("sis", $target, $user_id, $today);
-            $stmt->execute();
-            echo "<script>location.reload();</script>";
+
+            // basic validation
+            if (strpos($data, 'data:image') !== 0) {
+                echo "<div class='text-danger text-center'>Invalid image data.</div>";
+            } else {
+                // ensure uploads folder exists
+                $uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads';
+                if (!is_dir($uploadDir)) { mkdir($uploadDir, 0755, true); }
+
+                $filename = 'selfie_' . $user_id . '_' . $today . '_' . time() . '.png';
+                $target = 'uploads/' . $filename;
+
+                $img = preg_replace('#^data:image/\w+;base64,#i', '', $data);
+                $img = str_replace(' ', '+', $img);
+                $decoded = base64_decode($img);
+
+                if ($decoded === false || file_put_contents($uploadDir . DIRECTORY_SEPARATOR . $filename, $decoded) === false) {
+                    echo "<div class='text-danger text-center'>Failed to save selfie.</div>";
+                } else {
+                    // INSERT or UPDATE ojt_records.selfie for today
+                    $check = $oat->prepare("SELECT id FROM ojt_records WHERE user_id = ? AND date = ? LIMIT 1");
+                    $check->bind_param("is", $user_id, $today);
+                    $check->execute();
+                    $res = $check->get_result();
+
+                    if ($res->num_rows) {
+                        $rec = $res->fetch_assoc();
+                        $upd = $oat->prepare("UPDATE ojt_records SET selfie = ? WHERE id = ?");
+                        $upd->bind_param("si", $target, $rec['id']);
+                        $upd->execute();
+                    } else {
+                        $ins = $oat->prepare("INSERT INTO ojt_records (user_id, date, selfie) VALUES (?, ?, ?)");
+                        $ins->bind_param("iss", $user_id, $today, $target);
+                        $ins->execute();
+                    }
+
+                    echo "<script>location.reload();</script>";
+                }
+            }
         }
         ?>
         <div id="scan-label" class="text-center fw-semibold mb-2" style="color:var(--accent-deep);"></div>
