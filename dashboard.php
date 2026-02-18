@@ -429,6 +429,7 @@ function calculate_session_hours($row, $user_policy_time_in, $user_policy_time_o
     $policy_out_time = strtotime(date('Y-m-d', $time_in) . ' ' . $user_policy_time_out);
     $policy_duration = $policy_out_time - $policy_in_time;
 
+    // Restore lateness logic: only regular hours are affected, OT hours are always added in full
     $lateness = $time_in - $policy_in_time;
     if ($lateness >= 3600) {
         $count_start = strtotime(date('Y-m-d H:00:00', $time_in) . ' +1 hour');
@@ -449,7 +450,7 @@ function calculate_session_hours($row, $user_policy_time_in, $user_policy_time_o
 
     $ot_hours = (float)($row['ot_hours'] ?? 0);
 
-    $total_hours = max(0, floor($reg_hours + $ot_hours));
+    $total_hours = max(0, max(0, $reg_hours) + $ot_hours); // Always add full OT hours
     return ['regular' => max(0, $reg_hours), 'ot' => $ot_hours, 'total' => $total_hours];
 }
 ?>

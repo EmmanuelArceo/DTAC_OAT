@@ -226,8 +226,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['flash_success'] = $success;
     $_SESSION['flash_errors'] = $errors;
 
-    // do a client-side redirect (avoid PHP header() when output already sent)
-    $loc = htmlspecialchars($_SERVER['REQUEST_URI'], ENT_QUOTES);
+    // Remove open_ot from URL for redirect
+    $loc = strtok($_SERVER['REQUEST_URI'], '?');
     echo '<!doctype html><html><head><meta charset="utf-8"><title>Redirecting…</title>'
        . "<script>window.location.href = " . json_encode($loc) . ";</script>"
        . '<noscript><meta http-equiv="refresh" content="0;url=' . $loc . '"></noscript>'
@@ -801,6 +801,23 @@ function getVerificationStatus($oat, $report) {
             tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl); });
 
             renderPage();
+        })();
+
+        // Auto-open OT report modal if open_ot param is present
+        (function() {
+            function getParam(name) {
+                const url = new URL(window.location.href);
+                return url.searchParams.get(name);
+            }
+            const openOt = getParam('open_ot');
+            if (openOt) {
+                const modalId = 'modal-' + openOt;
+                const modalEl = document.getElementById(modalId);
+                if (modalEl) {
+                    const modal = new bootstrap.Modal(modalEl);
+                    setTimeout(() => modal.show(), 300); // slight delay to ensure DOM is ready
+                }
+            }
         })();
     </script>
 

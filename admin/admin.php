@@ -71,10 +71,10 @@ while($row = $weekly_data->fetch_assoc()) {
     $weekly_counts[] = $row['count'];
 }
 
-// Get recent activities
+// Get recent activities (include r.id for linking to verifydtr.php)
 if ($_SESSION['role'] === 'super_admin') {
     $recent_activities = $oat->query("
-        SELECT u.fname, u.mname, u.lname, u.profile_img, r.time_in, r.date, 'time_in' as action
+        SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_in, r.date, 'time_in' as action
         FROM ojt_records r
         JOIN users u ON r.user_id = u.id
         WHERE r.time_in IS NOT NULL
@@ -83,7 +83,7 @@ if ($_SESSION['role'] === 'super_admin') {
     ");
 } else {
     $recent_activities = $oat->query("
-        SELECT u.fname, u.mname, u.lname, u.profile_img, r.time_in, r.date, 'time_in' as action
+        SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_in, r.date, 'time_in' as action
         FROM ojt_records r
         JOIN users u ON r.user_id = u.id
         WHERE r.time_in IS NOT NULL
@@ -443,9 +443,11 @@ if ($_SESSION['role'] === 'super_admin') {
         .user-avatar {
             width: 48px;
             height: 48px;
+            aspect-ratio: 1 / 1;
             border-radius: 50%;
             object-fit: cover;
             border: 3px solid var(--border);
+            background: #f3f4f6;
         }
 
         .user-details h6 {
@@ -775,45 +777,9 @@ if ($_SESSION['role'] === 'super_admin') {
                         <span class="badge bg-primary">Live</span>
                     </div>
 
-                    <?php if ($recent_activities && $recent_activities->num_rows > 0): ?>
-                        <ul class="activity-list">
-                            <?php while ($activity = $recent_activities->fetch_assoc()): ?>
-                                <?php
-                                    $img = '../uploads/noimg.png';
-                                    if (!empty($activity['profile_img']) && file_exists('../' . $activity['profile_img'])) {
-                                        $img = '../' . $activity['profile_img'];
-                                    }
-                                    $time_ago = date('g:i A', strtotime($activity['time_in']));
-                                    $date_display = date('M d', strtotime($activity['date']));
-                                    // Show: Firstname M. Lastname (if mname exists)
-                                    $mname = trim($activity['mname']);
-                                    $middle = $mname ? strtoupper($mname[0]) . '.' : '';
-                                    $fullname = htmlspecialchars($activity['fname'] . ' ' . ($middle ? $middle . ' ' : '') . $activity['lname']);
-                                ?>
-                                <li class="activity-item">
-                                    <img src="<?= htmlspecialchars($img) ?>" alt="" class="user-avatar">
-                                    <div class="activity-content">
-                                        <h6><?= $fullname ?> clocked in</h6>
-                                        <small><i class="bi bi-clock me-1"></i><?= $time_ago ?> • <?= $date_display ?></small>
-                                    </div>
-                                    <div class="activity-icon">
-                                        <i class="bi bi-box-arrow-in-right"></i>
-                                    </div>
-                                </li>
-                            <?php endwhile; ?>
-                        </ul>
-                        <div class="text-center mt-3">
-                            <a href="activity.php" class="btn btn-sm btn-outline-primary">
-                                View All Activities <i class="bi bi-arrow-right ms-1"></i>
-                            </a>
-                        </div>
-                    <?php else: ?>
-                        <div class="empty-state">
-                            <i class="bi bi-activity"></i>
-                            <h5>No Recent Activity</h5>
-                            <p>Activity will appear here once OJTs start clocking in.</p>
-                        </div>
-                    <?php endif; ?>
+                    <div id="recent-activity-container">
+                        <!-- Recent activity will be loaded here by AJAX -->
+                    </div>
                 </div>
 
                 <!-- System Info Card -->
@@ -914,6 +880,20 @@ if ($_SESSION['role'] === 'super_admin') {
                 }
             }
         });
+
+        // AJAX polling for recent activity
+        function loadRecentActivity() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', 'recent_activity.php', true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    document.getElementById('recent-activity-container').innerHTML = xhr.responseText;
+                }
+            };
+            xhr.send();
+        }
+        loadRecentActivity();
+        setInterval(loadRecentActivity, 10000); // every 10 seconds
     </script>
 </body>
 </html>

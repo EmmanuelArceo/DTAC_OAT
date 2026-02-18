@@ -64,7 +64,6 @@ if (!empty($dtr['time_out']) && $dtr['time_out'] !== '00:00:00') {
     $reg_hours = min($time_out, $regular_end) - $count_start;
     $reg_hours = $reg_hours / 3600;
 
-
     $lunch_start_ts = strtotime(date('Y-m-d', $count_start) . ' ' . $lunch_start);
     $lunch_end_ts = strtotime(date('Y-m-d', $count_start) . ' ' . $lunch_end);
     // Always check for overlap if any part of work session is within lunch
@@ -85,7 +84,7 @@ if (!empty($dtr['time_out']) && $dtr['time_out'] !== '00:00:00') {
     }
 
     $ot_hours = (float)($dtr['ot_hours'] ?? 0);
-    $total_hours = max(0, round($reg_hours + $ot_hours, 2));
+    $total_hours = max(0, max(0, $reg_hours) + $ot_hours); // Always add full OT hours
 } else {
     $reg_hours = 0;
     $lunch_note = "<span class='text-muted'><i class='bi bi-dash-circle'></i> Waiting for time out to compute lunch deduction.</span>";

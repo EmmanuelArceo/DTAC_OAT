@@ -188,8 +188,11 @@ function calculateTotalHours($row, $user_id, $oat) {
     // OT hours: from ojt_records
     $ot_hours = (float)($row['ot_hours'] ?? 0);
 
-    $total_hours = max(0, floor($reg_hours + $ot_hours));
-    return ['total' => number_format($total_hours, 0) . ' h', 'ot' => number_format($ot_hours, 0) . ' h'];
+    $total_hours = max(0, max(0, $reg_hours) + $ot_hours); // Always add full OT hours
+    return [
+        'total' => ($total_hours > 0 ? rtrim(rtrim(number_format($total_hours, 2), '0'), '.') : '0') . ' h',
+        'ot' => ($ot_hours > 0 ? rtrim(rtrim(number_format($ot_hours, 2), '0'), '.') : '0') . ' h'
+    ];
 }
 
 ?>

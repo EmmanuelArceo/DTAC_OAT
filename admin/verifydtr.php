@@ -304,39 +304,38 @@ if (!empty($rec['profile_img']) && file_exists(__DIR__ . '/../' . $rec['profile_
         }
 
       // Only calculate regular hours if time_out is set
-      if (!empty($rec['time_out']) && $rec['time_out'] !== '00:00:00') {
+        if (!empty($rec['time_out']) && $rec['time_out'] !== '00:00:00') {
           $regular_end = $count_start + $policy_duration;
           $reg_hours = min($time_out, $regular_end) - $count_start;
           $reg_hours = $reg_hours / 3600;
-
 
           $lunch_start_ts = strtotime(date('Y-m-d', $count_start) . ' ' . $lunch_start);
           $lunch_end_ts = strtotime(date('Y-m-d', $count_start) . ' ' . $lunch_end);
           // Always check for overlap if any part of work session is within lunch
           if ($count_start < $lunch_end_ts && $time_out > $lunch_start_ts) {
-              $deduct_start = max($count_start, $lunch_start_ts);
-              $deduct_end = min($time_out, $lunch_end_ts);
-              $overlap = max(0, $deduct_end - $deduct_start);
-              if ($overlap > 0) {
-                  $lunch_note = "<span class='text-warning'><i class='bi bi-box-arrow-in-down'></i> Lunch break deducted: ";
-                  $lunch_note .= fmtTimeCell(date('H:i:s', $deduct_start)) . " – " . fmtTimeCell(date('H:i:s', $deduct_end));
-                  $lunch_note .= " (" . number_format($overlap/3600, 2) . " hour(s))</span>";
-                  $reg_hours -= $overlap / 3600;
-              } else {
-                  $lunch_note = "<span class='text-success'><i class='bi bi-check-circle'></i> No lunch deduction.</span>";
-              }
-          } else {
+            $deduct_start = max($count_start, $lunch_start_ts);
+            $deduct_end = min($time_out, $lunch_end_ts);
+            $overlap = max(0, $deduct_end - $deduct_start);
+            if ($overlap > 0) {
+              $lunch_note = "<span class='text-warning'><i class='bi bi-box-arrow-in-down'></i> Lunch break deducted: ";
+              $lunch_note .= fmtTimeCell(date('H:i:s', $deduct_start)) . " – " . fmtTimeCell(date('H:i:s', $deduct_end));
+              $lunch_note .= " (" . number_format($overlap/3600, 2) . " hour(s))</span>";
+              $reg_hours -= $overlap / 3600;
+            } else {
               $lunch_note = "<span class='text-success'><i class='bi bi-check-circle'></i> No lunch deduction.</span>";
+            }
+          } else {
+            $lunch_note = "<span class='text-success'><i class='bi bi-check-circle'></i> No lunch deduction.</span>";
           }
 
           $ot_hours = (float)($rec['ot_hours'] ?? 0);
-          $total_hours = max(0, round($reg_hours + $ot_hours, 2));
-      } else {
+          $total_hours = max(0, max(0, $reg_hours) + $ot_hours); // Always add full OT hours
+        } else {
           $reg_hours = 0;
           $lunch_note = "<span class='text-muted'><i class='bi bi-dash-circle'></i> Waiting for time out to compute lunch deduction.</span>";
           $ot_hours = (float)($rec['ot_hours'] ?? 0);
           $total_hours = $ot_hours;
-      }
+        }
       ?>
       <div class="mb-4">
         <div class="section-title">Calculation Breakdown</div>
