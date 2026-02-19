@@ -231,6 +231,15 @@ $recent = $stmt->get_result();
         }
         @media (max-width: 600px) {
             .profile-float { width: 90px; height: 90px; }
+            .req{
+                display: none !important;
+            }
+          .stats{
+            display: flex;
+          
+            align-content: center;
+            justify-content: center;
+        }
         }
     </style>
 </head>
@@ -255,8 +264,8 @@ $recent = $stmt->get_result();
                             <a href="otreport.php" class="btn-accent">OT Report</a>
                         </div>
             <div class="stats" data-aos="fade-up" data-aos-delay="200">
-                <div class="stat">
-                    <div class="label">Required Hours</div>
+                <div class="stat req">
+                    <div class="label ">Required Hours</div>
                     <div class="value"><?= number_format($required_hours,0) ?></div>
                     <div class="progress-wrap">
                         <div class="progress" aria-hidden="true">

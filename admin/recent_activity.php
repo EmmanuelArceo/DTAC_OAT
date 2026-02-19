@@ -10,47 +10,53 @@ $admin_id = (int)($_SESSION['user_id'] ?? 0);
 if ($_SESSION['role'] === 'super_admin') {
     $recent_activities = $oat->query("
         SELECT * FROM (
-            SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_in as action_time, r.date, 'time_in' as action_type, NULL as ot_id, NULL as ot_submitted
+            SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_in as action_time, r.date, 
+                   CONCAT(r.date, ' ', r.time_in) as action_datetime, 'time_in' as action_type, NULL as ot_id, NULL as ot_submitted
             FROM ojt_records r
             JOIN users u ON r.user_id = u.id
             WHERE r.time_in IS NOT NULL
             UNION ALL
-            SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_out as action_time, r.date, 'time_out' as action_type, NULL as ot_id, NULL as ot_submitted
+            SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_out as action_time, r.date, 
+                   CONCAT(r.date, ' ', r.time_out) as action_datetime, 'time_out' as action_type, NULL as ot_id, NULL as ot_submitted
             FROM ojt_records r
             JOIN users u ON r.user_id = u.id
             WHERE r.time_out IS NOT NULL AND r.time_out != '' AND r.time_out != '00:00:00'
             UNION ALL
-            SELECT NULL as id, u.fname, u.mname, u.lname, u.profile_img, o.submitted_at as action_time, o.ot_date as date, 'ot_request' as action_type, o.id as ot_id, o.submitted_at as ot_submitted
+            SELECT NULL as id, u.fname, u.mname, u.lname, u.profile_img, o.submitted_at as action_time, o.ot_date as date, 
+                   o.submitted_at as action_datetime, 'ot_request' as action_type, o.id as ot_id, o.submitted_at as ot_submitted
             FROM ot_reports o
             JOIN users u ON o.student_id = u.id
         ) t
-        ORDER BY t.date DESC, t.action_time DESC
+        ORDER BY t.action_datetime DESC
         LIMIT 5
     ");
 } else {
     $recent_activities = $oat->query("
         SELECT * FROM (
-            SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_in as action_time, r.date, 'time_in' as action_type, NULL as ot_id, NULL as ot_submitted
+            SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_in as action_time, r.date, 
+                   CONCAT(r.date, ' ', r.time_in) as action_datetime, 'time_in' as action_type, NULL as ot_id, NULL as ot_submitted
             FROM ojt_records r
             JOIN users u ON r.user_id = u.id
             WHERE r.time_in IS NOT NULL
               AND u.role='ojt'
               AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
             UNION ALL
-            SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_out as action_time, r.date, 'time_out' as action_type, NULL as ot_id, NULL as ot_submitted
+            SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_out as action_time, r.date, 
+                   CONCAT(r.date, ' ', r.time_out) as action_datetime, 'time_out' as action_type, NULL as ot_id, NULL as ot_submitted
             FROM ojt_records r
             JOIN users u ON r.user_id = u.id
             WHERE r.time_out IS NOT NULL AND r.time_out != '' AND r.time_out != '00:00:00'
               AND u.role='ojt'
               AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
             UNION ALL
-                        SELECT NULL as id, u.fname, u.mname, u.lname, u.profile_img, o.submitted_at as action_time, o.ot_date as date, 'ot_request' as action_type, o.id as ot_id, o.submitted_at as ot_submitted
-                        FROM ot_reports o
-                        JOIN users u ON o.student_id = u.id
-                        WHERE u.role='ojt'
-                            AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
+            SELECT NULL as id, u.fname, u.mname, u.lname, u.profile_img, o.submitted_at as action_time, o.ot_date as date, 
+                   o.submitted_at as action_datetime, 'ot_request' as action_type, o.id as ot_id, o.submitted_at as ot_submitted
+            FROM ot_reports ow
+            JOIN users u ON o.student_id = u.id
+            WHERE u.role='ojt'
+                AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
         ) t
-        ORDER BY t.date DESC, t.action_time DESC
+        ORDER BY t.action_datetime DESC
         LIMIT 5
     ");
 }

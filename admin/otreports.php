@@ -237,14 +237,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Fetch OT reports only for OJTs managed by the current admin/adviser using adviser_id field in users
 $current_admin_id = $_SESSION['user_id'];
-$stmt = $oat->prepare("
-    SELECT otr.id, u.id as user_id, u.fname, u.lname, otr.ot_hours, otr.ot_type, otr.reported_time_in, otr.reported_time_out, otr.ot_date, otr.ot_reason, otr.approved
-    FROM ot_reports otr
-    JOIN users u ON otr.student_id = u.id
-    WHERE u.adviser_id = ?
-    ORDER BY otr.ot_date DESC, otr.id DESC
-");
-$stmt->bind_param("i", $current_admin_id);
+$is_super_admin = ($_SESSION['role'] ?? '') === 'super_admin';
+
+if ($is_super_admin) {
+    // Super admin: see all reports
+    $stmt = $oat->prepare("
+        SELECT otr.id, u.id as user_id, u.fname, u.lname, otr.ot_hours, otr.ot_type, otr.reported_time_in, otr.reported_time_out, otr.ot_date, otr.ot_reason, otr.approved
+        FROM ot_reports otr
+        JOIN users u ON otr.student_id = u.id
+        ORDER BY otr.submitted_at DESC, otr.id DESC
+    ");
+} else {
+    // Admin/adviser: see only their advisees
+    $stmt = $oat->prepare("
+        SELECT otr.id, u.id as user_id, u.fname, u.lname, otr.ot_hours, otr.ot_type, otr.reported_time_in, otr.reported_time_out, otr.ot_date, otr.ot_reason, otr.approved
+        FROM ot_reports otr
+        JOIN users u ON otr.student_id = u.id
+        WHERE u.adviser_id = ?
+        ORDER BY otr.submitted_at DESC, otr.id DESC
+    ");
+    $stmt->bind_param("i", $current_admin_id);
+}
 $stmt->execute();
 $reports = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 

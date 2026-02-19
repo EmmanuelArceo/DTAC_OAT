@@ -1,5 +1,5 @@
 <?php
-// Session and access control
+
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once 'db.php';
 require_once 'nav.php';
@@ -9,100 +9,56 @@ if (empty($_SESSION['user_id'])) {
 }
 $user_id = $_SESSION['user_id'];
 
-// Determine OT date (defaults to today) and check whether user timed in for that date
 $ot_date = $_POST['ot_date'] ?? date('Y-m-d');
-$user_policy_time_in = '08:00:00';
-$user_policy_time_out = '17:00:00';
-$has_timed_in_for_date = false;
-
-$stmt = $oat->prepare("SELECT time_in_policy, time_out_policy FROM ojt_records WHERE user_id = ? AND DATE(time_in) = ?");
-$stmt->bind_param("is", $user_id, $ot_date);
-$stmt->execute();
-$record = $stmt->get_result()->fetch_assoc();
-$has_timed_in_for_date = (bool) $record;
-if ($record) {
-    $user_policy_time_in = $record['time_in_policy'] ?? $user_policy_time_in;
-    $user_policy_time_out = $record['time_out_policy'] ?? $user_policy_time_out;
-}
-
 $errors = [];
 $success = '';
 
 // Handle OT report submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_ot_report'])) {
-    // block submission if no time-in record exists for the selected date
-    if (!$has_timed_in_for_date) {
-        $errors[] = 'You must time in for the selected date to submit an OT report.';
+    $ot_date = $_POST['ot_date'] ?? date('Y-m-d');
+    $ot_reason = trim($_POST['ot_reason'] ?? '');
+    $ot_start_time = $_POST['ot_start_time'] ?? '';
+    $ot_end_time = $_POST['ot_end_time'] ?? '';
+
+    // Validate
+    if ($ot_start_time === '' || $ot_end_time === '') {
+        $errors[] = 'OT start and end time are required.';
+    }
+
+    // Build DateTime objects
+    $actualStartDT = DateTime::createFromFormat('Y-m-d H:i', $ot_date . ' ' . $ot_start_time);
+    $actualEndDT = DateTime::createFromFormat('Y-m-d H:i', $ot_date . ' ' . $ot_end_time);
+
+    if (!$actualStartDT || !$actualEndDT) {
+        $errors[] = 'Invalid OT start/end time.';
     } else {
-        $ot_type = $_POST['ot_type'] ?? '';
-        $ot_date = $_POST['ot_date'] ?? date('Y-m-d');
-        $ot_reason = trim($_POST['ot_reason'] ?? '');
-        $ot_hours = 0;
-        $actualInDT = $actualOutDT = null;
+        // Handle midnight crossing
+        if ($actualEndDT <= $actualStartDT) $actualEndDT->modify('+1 day');
+        $ot_hours = round(($actualEndDT->getTimestamp() - $actualStartDT->getTimestamp()) / 3600, 2);
+        if ($ot_hours <= 0) $errors[] = 'Calculated OT hours is 0. No OT to submit.';
+    }
 
-        // Check if ojt_records exists for the date
-        // (redundant safety check) re-use already-fetched $record
-        if (!$record) {
-            $errors[] = 'You must time in first for this date to submit an OT report.';
-        }
+    // Handle file uploads
+    $upload_dir = 'uploads/ot_proofs/';
+    if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+    $before_img_path = '';
+    $after_img_path = '';
+    if (!empty($_FILES['before_img']['name']) && $_FILES['before_img']['error'] === UPLOAD_ERR_OK) {
+        $before_img_path = $upload_dir . uniqid('before_') . '_' . basename($_FILES['before_img']['name']);
+        move_uploaded_file($_FILES['before_img']['tmp_name'], $before_img_path);
+    }
+    if (!empty($_FILES['after_img']['name']) && $_FILES['after_img']['error'] === UPLOAD_ERR_OK) {
+        $after_img_path = $upload_dir . uniqid('after_') . '_' . basename($_FILES['after_img']['name']);
+        move_uploaded_file($_FILES['after_img']['tmp_name'], $after_img_path);
+    }
 
-        // File upload (optional, not stored in DB)
-        if (!empty($_FILES['ot_proof']['name']) && $_FILES['ot_proof']['error'] === UPLOAD_ERR_OK) {
-            $upload_dir = 'uploads/ot_proofs/';
-            if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
-            $file_name = uniqid() . '_' . basename($_FILES['ot_proof']['name']);
-            move_uploaded_file($_FILES['ot_proof']['tmp_name'], $upload_dir . $file_name);
-        }
-
-        // Build DateTime objects
-        try {
-            $policyInDT = new DateTime("$ot_date $user_policy_time_in");
-            $policyOutDT = new DateTime("$ot_date $user_policy_time_out");
-        } catch (Exception $e) {
-            $errors[] = 'Invalid policy time configuration.';
-        }
-
-        if ($ot_type === 'early') {
-            $time_in_hour = $_POST['time_in_hour'] ?? '';
-            $time_in_ampm = $_POST['time_in_ampm'] ?? 'AM';
-            if ($time_in_hour === '') {
-                $errors[] = 'Actual time in is required for early OT.';
-            } else {
-                $actualInStr = "$ot_date $time_in_hour:00 $time_in_ampm";
-                $actualInDT = DateTime::createFromFormat('Y-m-d g:i A', $actualInStr);
-                $actualOutDT = clone $policyOutDT;
-            }
-        } elseif ($ot_type === 'late') {
-            $time_out_hour = $_POST['time_out_hour'] ?? '';
-            $time_out_ampm = $_POST['time_out_ampm'] ?? 'PM';
-            if ($time_out_hour === '') {
-                $errors[] = 'Actual time out is required for normal OT.';
-            } else {
-                $actualOutStr = "$ot_date $time_out_hour:00 $time_out_ampm";
-                $actualOutDT = DateTime::createFromFormat('Y-m-d g:i A', $actualOutStr);
-                $actualInDT = clone $policyInDT;
-            }
-        } else {
-            $errors[] = 'Invalid OT type.';
-        }
-
-        if (empty($errors) && $actualInDT && $actualOutDT) {
-            // Handle midnight crossing
-            if ($actualOutDT <= $actualInDT) $actualOutDT->modify('+1 day');
-            $earlyDiff = max(0, ($policyInDT->getTimestamp() - $actualInDT->getTimestamp()) / 3600);
-            $lateDiff  = max(0, ($actualOutDT->getTimestamp() - $policyOutDT->getTimestamp()) / 3600);
-            $ot_hours = round($earlyDiff + $lateDiff);
-            if ($ot_hours <= 0) $errors[] = 'Calculated OT hours is 0. No OT to submit.';
-        }
-
-        if (empty($errors)) {
-            $reported_time_in = $ot_type === 'early' ? $actualInDT->format('H:i:s') : null;
-            $reported_time_out = $ot_type === 'late' ? $actualOutDT->format('H:i:s') : null;
-            $stmt = $oat->prepare("INSERT INTO ot_reports (student_id, ot_hours, ot_type, reported_time_in, reported_time_out, ot_date, ot_reason) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("iisssss", $user_id, $ot_hours, $ot_type, $reported_time_in, $reported_time_out, $ot_date, $ot_reason);
-            if ($stmt->execute()) $success = 'OT report submitted successfully!';
-            else $errors[] = 'Database error while saving report.';
-        }
+    if (empty($errors)) {
+        $stmt = $oat->prepare("INSERT INTO ot_reports (student_id, ot_hours, ot_date, ot_reason, reported_time_in, reported_time_out, before_img, after_img) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $ot_start = $actualStartDT->format('H:i:s');
+        $ot_end = $actualEndDT->format('H:i:s');
+        $stmt->bind_param("idssssss", $user_id, $ot_hours, $ot_date, $ot_reason, $ot_start, $ot_end, $before_img_path, $after_img_path);
+        if ($stmt->execute()) $success = 'OT report submitted successfully!';
+        else $errors[] = 'Database error while saving report.';
     }
 }
 
@@ -113,6 +69,8 @@ if (($_SESSION['role'] ?? '') === 'admin') {
     $stmt->execute();
     $ot_summaries = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
+$currentHour = date('H');
+$defaultTime = sprintf('%02d:00', $currentHour);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -124,16 +82,10 @@ if (($_SESSION['role'] ?? '') === 'admin') {
 </head>
 <body>
 <main class="container py-4" style="max-width:680px">
-    <?php if (!$has_timed_in_for_date): ?>
-        <div class="alert alert-warning">
-            You can't submit an OT report because you are not timed in for the selected date (<?php echo htmlspecialchars($ot_date); ?>).
-            <a href="dtr.php" class="btn btn-primary btn-sm">Time In Today</a>
-        </div>
-    <?php else: ?>
     <div class="card mb-3">
         <div class="card-body">
             <h4 class="card-title text-primary">Submit OT Report</h4>
-            <p class="text-muted">OT includes early arrival (before <?php echo htmlspecialchars(date('g:i A', strtotime($user_policy_time_in))); ?>) or normal overtime (after <?php echo htmlspecialchars(date('g:i A', strtotime($user_policy_time_out))); ?>).</p>
+            <p class="text-muted">OT includes work outside your normal schedule. Please specify the date and actual OT start/end times.</p>
             <?php if ($success): ?>
                 <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
             <?php endif; ?>
@@ -142,56 +94,37 @@ if (($_SESSION['role'] ?? '') === 'admin') {
             <?php endif; ?>
             <form method="POST" enctype="multipart/form-data" autocomplete="off">
                 <div class="mb-3">
-                    <label class="form-label">OT Type</label><br>
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="ot_type" id="ot_type_early" value="early" checked>
-                        <label class="form-check-label" for="ot_type_early">Early Arrival</label>
-                    </div>
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="ot_type" id="ot_type_late" value="late">
-                        <label class="form-check-label" for="ot_type_late">Normal Overtime</label>
-                    </div>
+                    <label class="form-label">OT Date</label>
+                    <input type="date" name="ot_date" class="form-control" value="<?php echo htmlspecialchars($ot_date); ?>" required>
                 </div>
-                <div class="mb-3" id="time_in_section">
-                    <label class="form-label">Actual Time In (hour)</label>
-                    <div class="d-flex gap-2">
-                        <input type="number" id="time_in_hour" name="time_in_hour" class="form-control" min="1" max="12" step="1" placeholder="7">
-                        <select id="time_in_ampm" name="time_in_ampm" class="form-select" style="width:110px">
-                            <option>AM</option><option>PM</option>
-                        </select>
-                    </div>
+                <div class="mb-3">
+                    <label class="form-label">OT Start Time</label>
+                    <input type="time" name="ot_start_time" class="form-control" value="17:00"  required>
                 </div>
-                <div class="mb-3 d-none" id="time_out_section">
-                    <label class="form-label">Actual Time Out (hour)</label>
-                    <div class="d-flex gap-2">
-                        <input type="number" id="time_out_hour" name="time_out_hour" class="form-control" min="1" max="12" step="1" placeholder="6">
-                        <select id="time_out_ampm" name="time_out_ampm" class="form-select" style="width:110px">
-                            <option>PM</option><option>AM</option>
-                        </select>
-                    </div>
+                <div class="mb-3">
+                    <label class="form-label">OT End Time</label>
+                    <input type="time" name="ot_end_time" class="form-control" value="18:00" required>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Calculated OT Hours</label>
                     <input type="number" id="ot_hours" name="ot_hours" class="form-control" readonly>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">OT Date</label>
-                    <input type="date" name="ot_date" class="form-control" value="<?php echo date('Y-m-d'); ?>">
-                </div>
-                <div class="mb-3">
                     <label class="form-label">Reason</label>
                     <textarea name="ot_reason" class="form-control" rows="3" required></textarea>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Proof (optional)</label>
-                    <input type="file" name="ot_proof" class="form-control" accept="image/*,.pdf">
+                    <label class="form-label">Before Image (optional)</label>
+                    <input type="file" name="before_img" class="form-control" accept="image/*">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">After Image (optional)</label>
+                    <input type="file" name="after_img" class="form-control" accept="image/*">
                 </div>
                 <button type="submit" name="submit_ot_report" class="btn btn-primary w-100">Submit OT Report</button>
             </form>
         </div>
     </div>
-    <?php endif; ?>
-  
     <?php if (!empty($ot_summaries)): ?>
     <div class="card">
         <div class="card-body">
@@ -212,73 +145,24 @@ if (($_SESSION['role'] ?? '') === 'admin') {
     </div>
     <?php endif; ?>
 </main>
-
 <script>
-const policyInHour = <?php echo (int)date('g', strtotime($user_policy_time_in)); ?>;
-const policyInAmpm = '<?php echo date('A', strtotime($user_policy_time_in)); ?>';
-const policyOutHour = <?php echo (int)date('g', strtotime($user_policy_time_out)); ?>;
-const policyOutAmpm = '<?php echo date('A', strtotime($user_policy_time_out)); ?>';
-
-function to24(h, ampm){
-    h = parseInt(h,10);
-    if (isNaN(h)) return NaN;
-    if (ampm==='PM' && h!==12) h+=12;
-    if (ampm==='AM' && h===12) h=0;
-    return h;
-}
-
-function toggleSections(){
-    const type = document.querySelector('input[name="ot_type"]:checked').value;
-    const inSec = document.getElementById('time_in_section');
-    const outSec = document.getElementById('time_out_section');
-    if (type==='early') {
-        inSec.classList.remove('d-none');
-        outSec.classList.add('d-none');
-        // autofill out with policy out
-        document.getElementById('time_out_hour').value = policyOutHour;
-        document.getElementById('time_out_ampm').value = policyOutAmpm;
-    } else {
-        inSec.classList.add('d-none');
-        outSec.classList.remove('d-none');
-        // autofill in with policy in
-        document.getElementById('time_in_hour').value = policyInHour;
-        document.getElementById('time_in_ampm').value = policyInAmpm;
-    }
-    calculateOT();
-}
-
 function calculateOT(){
-    const typeEl = document.querySelector('input[name="ot_type"]:checked');
-    if (!typeEl) return;
-    const type = typeEl.value;
-    let total = 0;
-    const policyIn24 = to24(policyInHour, policyInAmpm);
-    const policyOut24 = to24(policyOutHour, policyOutAmpm);
-    if (type==='early') {
-        const ih = document.getElementById('time_in_hour').value;
-        const ia = document.getElementById('time_in_ampm').value;
-        if (!ih) { document.getElementById('ot_hours').value = ''; return; }
-        const actualIn = to24(ih, ia);
-        total = Math.max(0, policyIn24 - actualIn);
-    } else {
-        const oh = document.getElementById('time_out_hour').value;
-        const oa = document.getElementById('time_out_ampm').value;
-        if (!oh) { document.getElementById('ot_hours').value = ''; return; }
-        const actualOut = to24(oh, oa);
-        total = Math.max(0, actualOut - policyOut24);
-    }
-    document.getElementById('ot_hours').value = Math.round(total);
+    const start = document.querySelector('[name="ot_start_time"]').value;
+    const end = document.querySelector('[name="ot_end_time"]').value;
+    if (!start || !end) { document.getElementById('ot_hours').value = ''; return; }
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    let startMinutes = sh*60 + sm;
+    let endMinutes = eh*60 + em;
+    if (endMinutes <= startMinutes) endMinutes += 24*60;
+    let total = (endMinutes - startMinutes)/60;
+    document.getElementById('ot_hours').value = Math.round(total*100)/100;
 }
-
-document.querySelectorAll('input[name="ot_type"]').forEach(r => r.addEventListener('change', toggleSections));
-['time_in_hour','time_in_ampm','time_out_hour','time_out_ampm'].forEach(id=>{
-    const el = document.getElementById(id);
+['ot_start_time','ot_end_time'].forEach(id=>{
+    const el = document.querySelector(`[name="${id}"]`);
     if (el) el.addEventListener('input', calculateOT);
 });
-document.addEventListener('DOMContentLoaded', ()=> {
-    // initialize fields & UI
-    toggleSections();
-});
+document.addEventListener('DOMContentLoaded', calculateOT);
 </script>
 </body>
 </html>
