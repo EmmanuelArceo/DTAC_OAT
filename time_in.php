@@ -25,13 +25,15 @@ $default_lunch_end = $settings['lunch_end'] ?? '13:00:00';
 
 $user_lunch_start = $default_lunch_start;
 $user_lunch_end = $default_lunch_end;
-$stmt = $oat->prepare("SELECT tg.lunch_start, tg.lunch_end FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
+$stmt = $oat->prepare("SELECT tg.time_in, tg.time_out, tg.lunch_start, tg.lunch_end FROM user_time_groups utg JOIN time_groups tg ON utg.group_id = tg.id WHERE utg.user_id = ? LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $group = $stmt->get_result()->fetch_assoc();
 if ($group) {
     $user_lunch_start = $group['lunch_start'] ?: $default_lunch_start;
     $user_lunch_end = $group['lunch_end'] ?: $default_lunch_end;
+    $user_policy_time_in = $group['time_in'] ?: $default_time_in;
+    $user_policy_time_out = $group['time_out'] ?: $default_time_out;
 }
 
 if (empty($_REQUEST['code']) || empty($_REQUEST['date'])) {
@@ -116,9 +118,11 @@ $sel->execute();
 $selRes = $sel->get_result();
 
 $time_in = date('H:i:s');
-$remarks = ($time_in > $default_time_in) ? 'late' : 'on time';
-$user_policy_time_in = $default_time_in;
-$user_policy_time_out = $default_time_out;
+// ensure policy times are set (may have been set from user's time group above)
+if (!isset($user_policy_time_in)) $user_policy_time_in = $default_time_in;
+if (!isset($user_policy_time_out)) $user_policy_time_out = $default_time_out;
+// determine remarks against the user's policy time-in
+$remarks = ($time_in > $user_policy_time_in) ? 'late' : 'on time';
 
 if ($selRes->num_rows > 0) {
     $row = $selRes->fetch_assoc();
@@ -128,11 +132,11 @@ if ($selRes->num_rows > 0) {
     }
 
     if ($selfie_path !== null) {
-        $upd = $oat->prepare("UPDATE ojt_records SET time_in = ?, selfie = ? WHERE id = ?");
-        $upd->bind_param("ssi", $time_in, $selfie_path, $row['id']);
+        $upd = $oat->prepare("UPDATE ojt_records SET time_in = ?, time_in_policy = ?, time_out_policy = ?, lunch_start = ?, lunch_end = ?, remarks = ?, selfie = ? WHERE id = ?");
+        $upd->bind_param("sssssssi", $time_in, $user_policy_time_in, $user_policy_time_out, $user_lunch_start, $user_lunch_end, $remarks, $selfie_path, $row['id']);
     } else {
-        $upd = $oat->prepare("UPDATE ojt_records SET time_in = ? WHERE id = ?");
-        $upd->bind_param("si", $time_in, $row['id']);
+        $upd = $oat->prepare("UPDATE ojt_records SET time_in = ?, time_in_policy = ?, time_out_policy = ?, lunch_start = ?, lunch_end = ?, remarks = ? WHERE id = ?");
+        $upd->bind_param("ssssi s", $time_in, $user_policy_time_in, $user_policy_time_out, $user_lunch_start, $user_lunch_end, $remarks, $row['id']);
     }
     $ok = $upd->execute();
 
