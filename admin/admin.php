@@ -44,11 +44,14 @@ if ($_SESSION['role'] === 'super_admin') {
 }
 
 // Get weekly attendance trend
+// Build last 7 days range (inclusive) and fetch counts, then fill missing days with 0
+$start_date = date('Y-m-d', strtotime('-6 days')); // 6 days ago -> 7-day window including today
+$end_date   = date('Y-m-d');
 if ($_SESSION['role'] === 'super_admin') {
     $weekly_data = $oat->query("
-        SELECT DATE(date) as day, COUNT(DISTINCT user_id) as count 
-        FROM ojt_records 
-        WHERE date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+        SELECT DATE(date) as day, COUNT(DISTINCT user_id) as count
+        FROM ojt_records
+        WHERE date BETWEEN '$start_date' AND '$end_date'
         GROUP BY DATE(date)
         ORDER BY day ASC
     ");
@@ -59,16 +62,25 @@ if ($_SESSION['role'] === 'super_admin') {
         JOIN users u ON r.user_id = u.id
         WHERE u.role='ojt'
           AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
-          AND r.date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+          AND r.date BETWEEN '$start_date' AND '$end_date'
         GROUP BY DATE(r.date)
         ORDER BY day ASC
     ");
 }
+
+$counts_map = [];
+if ($weekly_data) {
+    while ($row = $weekly_data->fetch_assoc()) {
+        $counts_map[$row['day']] = (int)$row['count'];
+    }
+}
+
 $weekly_labels = [];
 $weekly_counts = [];
-while($row = $weekly_data->fetch_assoc()) {
-    $weekly_labels[] = date('M d', strtotime($row['day']));
-    $weekly_counts[] = $row['count'];
+for ($i = 0; $i < 7; $i++) {
+    $d = date('Y-m-d', strtotime("$start_date +{$i} days"));
+    $weekly_labels[] = date('M d', strtotime($d));
+    $weekly_counts[] = $counts_map[$d] ?? 0;
 }
 
 // Get recent activities (include r.id for linking to verifydtr.php)

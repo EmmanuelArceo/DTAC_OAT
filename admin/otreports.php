@@ -971,14 +971,13 @@ input[type=checkbox] {
             <div class="modal-detail-val"><?=htmlspecialchars($v['actual_in']??'—')?></div>
           </div>
           <div class="modal-detail-row">
-            <div class="modal-detail-label">Call Time</div>
-            <div class="modal-detail-val"><?=htmlspecialchars($v['policy_in']??'—')?></div>
+            <div class="modal-detail-label">Actual Time Out</div>
+            <div class="modal-detail-val"><?php
+              $aout = $v['actual_out'] ?? null;
+              echo $aout ? htmlspecialchars($aout) : '--';
+            ?></div>
           </div>
           <?php if($r['ot_type']!=='early'): ?>
-          <div class="modal-detail-row">
-            <div class="modal-detail-label">Actual Time Out</div>
-            <div class="modal-detail-val"><?=htmlspecialchars($v['actual_out']??'—')?></div>
-          </div>
           <div class="modal-detail-row">
             <div class="modal-detail-label">Call Out</div>
             <div class="modal-detail-val"><?=htmlspecialchars($v['policy_out']??'—')?></div>
