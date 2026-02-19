@@ -143,6 +143,15 @@ $modals = '';
                 font-size: 1.1rem;
             }
         }
+        /* OJT modal styles */
+        .ojt-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:.6rem; }
+        .ojt-card { display:flex; gap:.6rem; align-items:center; padding:.6rem; border-radius:10px; background:#fbfbfd; box-shadow:0 6px 18px rgba(2,6,23,0.04); border:1px solid rgba(15,23,42,0.03); }
+        .ojt-card img { width:44px; height:44px; object-fit:cover; border-radius:8px; flex-shrink:0; }
+        .ojt-card .meta { display:flex; flex-direction:column; }
+        .ojt-card .meta .name { font-weight:700; color:#0f172a; }
+        .ojt-card .meta .username { color:#64748b; font-size:.86rem; }
+        .ojt-card .actions { margin-left:auto; }
+        @media(max-width:480px){ .ojt-grid{ grid-template-columns:1fr; } }
     </style>
 </head>
 <body>
@@ -190,6 +199,12 @@ $modals = '';
                             </td>
                             <?php if ($_SESSION['role'] === 'super_admin'): ?>
                             <td>
+                                <!-- Show OJT Button -->
+                                <button class="btn btn-sm btn-outline-info mb-1"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#showOjtModal<?= $admin['id'] ?>">
+                                    Show OJT
+                                </button>
                                 <!-- Edit Info Button -->
                                 <button class="btn btn-sm btn-outline-secondary mb-1"
                                     data-bs-toggle="modal"
@@ -281,6 +296,46 @@ $modals = '';
                           </div>
                         </div>
                         ';
+                            // Build OJT list and Show OJT modal
+                            $stuRes = $oat->query("SELECT id, fname, mname, lname, username, profile_img FROM users WHERE adviser_id = " . (int)$admin['id'] . " AND role='ojt' ORDER BY lname, fname");
+                            $studentListHtml = '';
+                            if ($stuRes && $stuRes->num_rows) {
+                                $cards = '';
+                                while ($s = $stuRes->fetch_assoc()) {
+                                    $m = trim($s['mname']);
+                                    $mi = $m ? ' ' . strtoupper($m[0]) . '.' : '';
+                                    $displayName = htmlspecialchars($s['fname'] . $mi . ' ' . $s['lname']);
+                                    $username = htmlspecialchars($s['username']);
+                                    $img = !empty($s['profile_img']) ? '../' . htmlspecialchars($s['profile_img']) : 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f464.png';
+                                    $cards .= '<div class="ojt-card">'
+                                           . '<img src="' . $img . '" alt="avatar" onerror="this.onerror=null;this.src=\'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f464.png\'">'
+                                           . '<div class="meta">'
+                                             . '<div class="name">' . $displayName . '</div>'
+                                             . '<div class="username">@' . $username . '</div>'
+                                           . '</div>'
+                                           . '<div class="actions">'
+                                             . '<a href="../profile.php?user=' . (int)$s['id'] . '" class="btn btn-sm btn-outline-secondary btn-compact me-1">Profile</a>'
+                                             . '<a href="dtruserview.php?user=' . (int)$s['id'] . '" class="btn btn-sm btn-primary btn-compact">DTR</a>'
+                                           . '</div>'
+                                         . '</div>';
+                                }
+                                $studentListHtml = '<div class="ojt-grid">' . $cards . '</div>';
+                            } else {
+                                $studentListHtml = '<div class="text-muted">No OJT assigned.</div>';
+                            }
+                            $modals .= '<div class="modal fade" id="showOjtModal'.$admin['id'].'" tabindex="-1" aria-labelledby="showOjtModalLabel'.$admin['id'].'" aria-hidden="true">'
+                                     . '<div class="modal-dialog modal-lg modal-dialog-centered">'
+                                     . '<div class="modal-content">'
+                                     . '<div class="modal-header">'
+                                     . '<h5 class="modal-title" id="showOjtModalLabel'.$admin['id'].'"><i class="bi bi-people-fill"></i> OJT under '.htmlspecialchars($admin['fname'].' '.$admin['lname']).'</h5>'
+                                     . '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>'
+                                     . '</div>'
+                                     . '<div class="modal-body">'
+                                     . $studentListHtml
+                                     . '</div>'
+                                     . '<div class="modal-footer">'
+                                     . '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>'
+                                     . '</div></div></div></div>';
                         }
                         ?>
                     <?php endwhile; ?>

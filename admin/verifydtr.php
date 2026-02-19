@@ -218,8 +218,8 @@ if (!empty($rec['profile_img']) && file_exists(__DIR__ . '/../' . $rec['profile_
           <div class="username">@<?= htmlspecialchars($rec['username']) ?> · <?= htmlspecialchars($rec['date']) ?></div>
         </div>
         <div class="profile-actions">
-          <a href="dtrview.php?user_id=<?= (int)$rec['user_id'] ?>" class="btn btn-outline-secondary">Back to DTR</a>
-          <button class="btn btn-light" onclick="history.back()">Close</button>
+        <!--   <a href="dtrview.php?user_id=<?= (int)$rec['user_id'] ?>" class="btn btn-outline-secondary">Back to DTR</a>-->
+         <button class="btn btn-light" onclick="history.back()">Close</button> 
         </div>
       </div>
 

@@ -173,6 +173,12 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
       <div class="nav-label ms-2">DTR View</div>
     </a>
 <?php if ($_SESSION['role'] === 'super_admin'): ?>
+    <a class="nav-link d-flex align-items-center <?php echo active('manage_admins.php',$current); ?>" href="manage_admins.php" title="Manage Supervisors" data-bs-toggle="tooltip" data-bs-placement="right">
+      <div class="sb-icon"><i class="bi bi-person-badge"></i></div>
+      <div class="nav-label ms-2">Manage <br> Supervisors</div>
+    </a>
+<?php endif; ?>
+<?php if ($_SESSION['role'] === 'super_admin'): ?>
     <a class="nav-link d-flex align-items-center <?php echo active('sitesettings.php',$current); ?>" href="sitesettings.php" title="Site Settings" data-bs-toggle="tooltip" data-bs-placement="right">
       <div class="sb-icon"><i class="bi bi-gear"></i></div>
       <div class="nav-label ms-2">Time Groups</div>

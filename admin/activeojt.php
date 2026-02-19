@@ -68,6 +68,7 @@ if ($_SESSION['role'] === 'super_admin') {
             min-height: 100vh;
             margin: 0;
             padding: 0;
+            padding-left: 220px;
         }
         .main-header {
             font-size: 2.5rem;
@@ -229,6 +230,9 @@ if ($_SESSION['role'] === 'super_admin') {
         @media (max-width: 991.98px) {
             .ojt-list {
                 grid-template-columns: 1fr;
+            }
+            body{
+                padding-left: 0px;
             }
         }
         @media (max-width: 767.98px) {
