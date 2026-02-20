@@ -413,6 +413,156 @@ $recent = $stmt->get_result();
                     <div style="padding:18px;color:var(--muted);">No recent sessions yet.</div>
                 <?php endif; ?>
             </div>
+
+            <!-- Assignments -->
+            <?php
+            $assignments = [];
+            $assign_count = 0;
+            // Check if assignments table exists to avoid unknown column errors
+            $tableExists = false;
+            $resCheck = $oat->query("SHOW TABLES LIKE 'assignments'");
+            if ($resCheck && $resCheck->num_rows > 0) {
+                $tableExists = true;
+            }
+
+            if ($tableExists) {
+                // Inspect columns to pick a safe date column if available
+                $cols = [];
+                $colsRes = $oat->query("DESCRIBE assignments");
+                if ($colsRes) {
+                    while ($c = $colsRes->fetch_assoc()) {
+                        $cols[] = $c['Field'];
+                    }
+                }
+                $date_col = null;
+                foreach (['date','assigned_date','due_date','created_at','created'] as $cname) {
+                    if (in_array($cname, $cols)) { $date_col = $cname; break; }
+                }
+
+                $date_select = $date_col ? "a.`$date_col` AS date" : "NULL AS date";
+                $order_by = [];
+                if ($date_col) $order_by[] = "a.`$date_col` DESC";
+                if (in_array('created_at', $cols)) $order_by[] = "a.created_at DESC";
+                if (empty($order_by)) $order_by[] = "a.id DESC";
+
+                // exclude archived if status column exists
+                $status_cond = in_array('status', $cols) ? "a.status != 'archived' AND " : "";
+                $assign_sql = "SELECT a.id, a.title, a.description, $date_select, " . (in_array('status',$cols) ? "a.status, " : "") . "u.fname, u.mname, u.lname
+                    FROM assignments a
+                    LEFT JOIN users u ON a.assigned_by = u.id
+                    WHERE {$status_cond}(a.assigned_to = ? OR a.assigned_to = 0 OR a.assigned_to IS NULL OR a.assigned_to = 'all')
+                    ORDER BY " . implode(', ', $order_by);
+
+                if ($stmtA = $oat->prepare($assign_sql)) {
+                    $stmtA->bind_param("i", $user_id);
+                    if ($stmtA->execute()) {
+                        $resA = $stmtA->get_result();
+                        $assignments = $resA->fetch_all(MYSQLI_ASSOC);
+                        $assign_count = $resA->num_rows;
+                    }
+                    $stmtA->close();
+                }
+            }
+            ?>
+            <div class="recent" style="margin-top:18px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                    <div style="font-weight:700;color:var(--accent-deep)">Assignments</div>
+                    <div style="color:var(--muted);font-size:13px"><?= $assign_count ?></div>
+                </div>
+                <?php if ($assign_count > 0): ?>
+                    <?php
+                        // Group assignments into today, tomorrow and past based on the selected date column
+                        $today_tasks = [];
+                        $tomorrow_tasks = [];
+                        $past_tasks = [];
+                        $today_str = date('Y-m-d');
+                        $tomorrow_str = date('Y-m-d', strtotime('+1 day'));
+                        foreach ($assignments as $as) {
+                            $ad = $as['date'] ?? null;
+                            if ($ad && $ad !== '0000-00-00') {
+                                $ad_norm = date('Y-m-d', strtotime($ad));
+                                if ($ad_norm === $today_str) {
+                                    $today_tasks[] = $as;
+                                } elseif ($ad_norm === $tomorrow_str) {
+                                    $tomorrow_tasks[] = $as;
+                                } elseif ($ad_norm < $today_str) {
+                                    $past_tasks[] = $as;
+                                }
+                            }
+                        }
+                        // Ensure past tasks are ordered latest-first (most recent past date first)
+                        usort($past_tasks, function($a, $b){
+                            $ta = strtotime($a['date'] ?? '1970-01-01');
+                            $tb = strtotime($b['date'] ?? '1970-01-01');
+                            return $tb <=> $ta;
+                        });
+                    ?>
+
+                    <div style="display:flex;flex-direction:column;gap:12px;">
+                        <div>
+                            <div style="font-weight:700;color:var(--accent-deep);margin-bottom:8px">Today's Tasks</div>
+                            <?php if (!empty($today_tasks)): ?>
+                                <?php foreach ($today_tasks as $t): ?>
+                                    <div style="padding:12px;border-radius:10px;background:#fff;border:1px solid rgba(15,23,42,0.04);margin-bottom:8px;">
+                                        <div style="font-weight:700;color:var(--accent-deep);"><?php echo htmlspecialchars($t['title']); ?></div>
+                                        <div style="font-size:13px;color:var(--muted);margin-top:6px"><?php echo htmlspecialchars(mb_strimwidth($t['description'],0,140,'...')); ?></div>
+                                        <div style="font-size:12px;color:var(--muted);margin-top:8px">Assigned by: <?php
+                                            $ab = trim(($t['fname'] ?? '') . ' ' . (isset($t['mname']) && $t['mname'] ? strtoupper(substr($t['mname'],0,1)).'. ' : '') . ($t['lname'] ?? ''));
+                                            echo htmlspecialchars($ab ?: '—');
+                                        ?></div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <div style="color:var(--muted);padding:12px;border-radius:10px;background:#fff;border:1px dashed rgba(15,23,42,0.04)">No tasks for today.</div>
+                            <?php endif; ?>
+                        </div>
+
+                        <div>
+                            <div style="font-weight:700;color:var(--accent-deep);margin-bottom:8px">Tomorrow's Tasks</div>
+                            <?php if (!empty($tomorrow_tasks)): ?>
+                                <?php $tomorrow_count = count($tomorrow_tasks); ?>
+                                <div style="<?= $tomorrow_count > 5 ? 'max-height:420px;overflow-y:auto;padding-right:8px;' : '' ?>">
+                                <?php foreach ($tomorrow_tasks as $t): ?>
+                                    <div style="padding:12px;border-radius:10px;background:#fff;border:1px solid rgba(15,23,42,0.04);margin-bottom:8px;">
+                                        <div style="font-weight:700;color:var(--accent-deep);"><?php echo htmlspecialchars($t['title']); ?></div>
+                                        <div style="font-size:13px;color:var(--muted);margin-top:6px"><?php echo htmlspecialchars(mb_strimwidth($t['description'],0,140,'...')); ?></div>
+                                        <div style="font-size:12px;color:var(--muted);margin-top:8px">Assigned by: <?php
+                                            $ab = trim(($t['fname'] ?? '') . ' ' . (isset($t['mname']) && $t['mname'] ? strtoupper(substr($t['mname'],0,1)).'. ' : '') . ($t['lname'] ?? ''));
+                                            echo htmlspecialchars($ab ?: '—');
+                                        ?></div>
+                                    </div>
+                                <?php endforeach; ?>
+                                </div>
+                            <?php else: ?>
+                                <div style="color:var(--muted);padding:12px;border-radius:10px;background:#fff;border:1px dashed rgba(15,23,42,0.04)">No tasks for tomorrow.</div>
+                            <?php endif; ?>
+                        </div>
+
+                        <div>
+                            <button id="togglePast" class="btn-accent" style="width:180px;">Show Past Tasks</button>
+                            <div id="pastTasks" style="display:none;margin-top:12px;">
+                                <div style="font-weight:700;color:var(--accent-deep);margin-bottom:8px">Past Tasks</div>
+                                <?php if (!empty($past_tasks)): ?>
+                                    <?php foreach ($past_tasks as $t): ?>
+                                        <div style="padding:12px;border-radius:10px;background:#fff;border:1px solid rgba(15,23,42,0.04);margin-bottom:8px;">
+                                            <div style="font-weight:700;color:var(--accent-deep);"><?php echo htmlspecialchars($t['title']); ?></div>
+                                            <div style="font-size:13px;color:var(--muted);margin-top:6px"><?php echo htmlspecialchars(mb_strimwidth($t['description'],0,140,'...')); ?></div>
+                                            <div style="font-size:12px;color:var(--muted);margin-top:8px">Date: <?php echo htmlspecialchars(date('Y-m-d', strtotime($t['date']))); ?> &middot; Assigned by: <?php
+                                                $ab = trim(($t['fname'] ?? '') . ' ' . (isset($t['mname']) && $t['mname'] ? strtoupper(substr($t['mname'],0,1)).'. ' : '') . ($t['lname'] ?? ''));
+                                                echo htmlspecialchars($ab ?: '—');
+                                            ?></div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <div style="color:var(--muted);padding:12px;border-radius:10px;background:#fff;border:1px dashed rgba(15,23,42,0.04)">No past tasks.</div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div style="padding:18px;color:var(--muted);">No assignments at the moment.</div>
+                <?php endif; ?>
+            </div>
         </div>
     </main>
 
@@ -421,6 +571,21 @@ $recent = $stmt->get_result();
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
     <script>
         AOS.init();
+        document.addEventListener('DOMContentLoaded', function(){
+            var btn = document.getElementById('togglePast');
+            var past = document.getElementById('pastTasks');
+            if (btn && past) {
+                btn.addEventListener('click', function(){
+                    if (past.style.display === 'none' || past.style.display === '') {
+                        past.style.display = 'block';
+                        btn.textContent = 'Hide Past Tasks';
+                    } else {
+                        past.style.display = 'none';
+                        btn.textContent = 'Show Past Tasks';
+                    }
+                });
+            }
+        });
     </script>
 </body>
 </html>

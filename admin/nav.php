@@ -188,7 +188,13 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
       <div class="sb-icon"><i class="bi bi-upc-scan"></i></div>
       <div class="nav-label ms-2">Time In/Out QR</div>
     </a>
-  </div>
+
+    <!-- Assignments (Admins / Supervisors) -->
+    <a class="nav-link d-flex align-items-center <?php echo active('assign.php',$current); ?>" href="assign.php" title="Assign Tasks" data-bs-toggle="tooltip" data-bs-placement="right">
+      <div class="sb-icon"><i class="bi bi-list-task"></i></div>
+      <div class="nav-label ms-2">Assign Tasks</div>
+    </a>
+  </div>  
 
   <div class="sb-actions d-flex gap-2 mt-auto">
     <a href="logout.php" class="btn btn-danger d-flex align-items-center justify-content-center" title="Logout" data-bs-toggle="tooltip" data-bs-placement="right">
@@ -221,6 +227,7 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
       <a class="list-group-item list-group-item-action <?php echo active('dtruserview.php',$current); ?>" href="dtruserview.php">DTR View</a>
       <a class="list-group-item list-group-item-action <?php echo active('sitesettings.php',$current); ?>" href="sitesettings.php">Time Groups</a>
       <a class="list-group-item list-group-item-action <?php echo active('qr_generator.php',$current); ?>" href="qr_generator.php">QR Generator</a>
+      <a class="list-group-item list-group-item-action <?php echo active('asign.php',$current); ?>" href="asign.php">Assignments</a>
     </div>
 
     <div class="mt-3 d-flex gap-2">
