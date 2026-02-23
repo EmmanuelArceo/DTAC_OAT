@@ -376,7 +376,7 @@ function calculateTotalHours($row, $user_id, $oat) {
 
          <!-- FACE CAPTURE (required before Time In scan) -->
          <div id="face-capture" class="text-center mt-3" style="display:none;">
-             <div class="card mx-auto" style="max-width:360px; border-radius:12px; padding:12px; box-shadow:0 6px 20px rgba(15,23,42,0.06);">
+             <div class="card mx-auto" style="max-width:280px; border-radius:12px; padding:12px; box-shadow:0 6px 20px rgba(15,23,42,0.06);">
                  <div id="face-video-wrap" style="position:relative;">
                      <video id="face-video" autoplay muted playsinline style="width:100%; border-radius:8px; background:#000;"></video>
                      <canvas id="face-canvas" style="display:none; width:100%; border-radius:8px;"></canvas>
@@ -542,11 +542,11 @@ function calculateTotalHours($row, $user_id, $oat) {
          function captureFace() {
              const video = document.getElementById('face-video');
              const canvas = document.getElementById('face-canvas');
-             canvas.width = video.videoWidth || 320;
-             canvas.height = video.videoHeight || 240;
+             canvas.width = video.videoWidth || 200;
+             canvas.height = video.videoHeight || 200;
              const ctx = canvas.getContext('2d');
              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-             selfieDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+             selfieDataUrl = canvas.toDataURL('image/jpeg', 0.75);
              selfieCaptured = true;
              document.getElementById('face-video').style.display = 'none';
              canvas.style.display = 'block';
