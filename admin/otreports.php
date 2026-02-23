@@ -472,7 +472,7 @@ body::after {
   display:grid; grid-template-columns:1fr 1fr;
   gap:.4rem .75rem;
 }
-.ot-card-field { }
+
 .ot-card-field-label { font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--slate-400); }
 .ot-card-field-val   { font-size:.83rem; color:var(--slate-800); font-weight:500; margin-top:1px; }
 .ot-card-reason {
