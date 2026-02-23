@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
         }
         
         // Get current profile image path
-        $old_img = $oat->query("SELECT profile_img FROM users WHERE id = $user_id")->fetch_assoc()['profile_img'];
+        $old_img = $oat->query("SELECT * FROM users WHERE id = $user_id")->fetch_assoc()['profile_img'];
         
         if ($old_img && file_exists($old_img)) {
             // Replace the old image by overwriting the file
@@ -43,11 +43,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     }
 
     $oat->query("UPDATE users SET bio = '" . $oat->real_escape_string($bio) . "' WHERE id = $user_id");
+
+
+    if ($oat->affected_rows >= 0) {
+    set_time_limit(3); // Extend execution time limit to 5 minutes   
     $success = "Profile updated successfully!";
+    } else {
+        $success = "No changes made to the profile.";
+    }
+  
+
+}
+
+// Handle password change
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
+    $current = $_POST['current_password'] ?? '';
+    $new = $_POST['new_password'] ?? '';
+    $confirm = $_POST['confirm_password'] ?? '';
+    
+    // Fetch hashed password from DB
+    $row = $oat->query("SELECT password FROM users WHERE id = $user_id")->fetch_assoc();
+    $hashed = $row ? $row['password'] : '';
+
+    if (empty($current) || empty($new) || empty($confirm)) {
+        $password_error = "All password fields are required.";
+    } elseif (!password_verify($current, $hashed)) {
+        $password_error = "Current password is incorrect.";
+    } elseif ($new !== $confirm) {
+        $password_error = "New password and confirmation do not match.";
+    } else {
+        $new_hashed = password_hash($new, PASSWORD_DEFAULT);
+        $oat->query("UPDATE users SET password = '$new_hashed' WHERE id = $user_id");
+        $password_success = "Password changed successfully!";
+    }
 }
 
 // Fetch user info
-$user = $oat->query("SELECT username, bio, profile_img FROM users WHERE id = $user_id")->fetch_assoc();
+$user = $oat->query("SELECT * FROM users WHERE id = $user_id")->fetch_assoc();
+$name = $oat->query("SELECT * FROM users WHERE id = $user_id")->fetch_assoc();
 ?>
 
 <!DOCTYPE html>
@@ -147,22 +180,46 @@ $user = $oat->query("SELECT username, bio, profile_img FROM users WHERE id = $us
 <body>
     <?php include 'nav.php'; ?>
     <div class="profile-glass">
-        <div class="profile-title">My Profile</div>
+        <div class="profile-title"><?= htmlspecialchars($name['fname'] . ' ' . substr($name['mname'], 0, 1) . '. ' . $name['lname']) ?></div>
         <?php if (!empty($success)): ?>
-            <div class="alert alert-success text-center mb-3 py-2"><?= $success ?></div>
+            <div id="successMsg" class="alert alert-success text-center mb-3 py-2"><?= $success ?></div>
+        <?php endif; ?>
+        <?php if (!empty($password_success)): ?>
+            <div class="alert alert-success text-center mb-3 py-2"><?= $password_success ?></div>
+        <?php endif; ?>
+        <?php if (!empty($password_error)): ?>
+            <div class="alert alert-danger text-center mb-3 py-2"><?= $password_error ?></div>
         <?php endif; ?>
         <form method="POST" enctype="multipart/form-data" class="mb-3">
             <div class="d-flex flex-column align-items-center mb-3">
-                <img src="<?= !empty($user['profile_img']) ? $user['profile_img'] . '?t=' . time() : 'https://ui-avatars.com/api/?name=' . urlencode($user['username']) ?>" alt="Profile Image" class="profile-img" id="profilePreview">
+                <img id="profilePreview" src="<?= htmlspecialchars($user['profile_img'] ?? 'uploads/noimg.png') ?>" alt="Profile Image" class="profile-img">
                 <label class="form-label mt-2" for="profile_img" style="color:var(--accent-deep);font-weight:600;">Change Photo</label>
                 <input type="file" name="profile_img" id="profile_img" accept="image/*" class="form-control" style="max-width:220px;" onchange="previewProfileImg(event)">
             </div>
             <div class="mb-3">
                 <label class="profile-bio-label mb-1" for="bio">Bio</label>
-                <textarea name="bio" id="bio" rows="3" class="form-control" maxlength="255"><?= htmlspecialchars($user['bio'] ?? '') ?></textarea>
+                <textarea name="bio" id="bio" rows="3" class="form-control" maxlength="255"><?= htmlspecialchars($name['bio'] ?? '') ?></textarea>
             </div>
             <button type="submit" name="update_profile" class="btn-accent w-100 mb-2">Save Changes</button>
         </form>
+
+        <!-- Change password section -->
+        <form id="passwordForm" method="POST" class="mb-3">
+            <div class="mb-3">
+                <label class="profile-bio-label mb-1" for="current_password">Current Password</label>
+                <input type="password" name="current_password" id="current_password" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="profile-bio-label mb-1" for="new_password">New Password</label>
+                <input type="password" name="new_password" id="new_password" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="profile-bio-label mb-1" for="confirm_password">Confirm New Password</label>
+                <input type="password" name="confirm_password" id="confirm_password" class="form-control" required>
+            </div>
+            <button type="submit" name="change_password" class="btn-accent w-100 mb-2">Change Password</button>
+        </form>
+
         <div class="text-center">
             <button id="logoutBtn" class="logout-btn">Logout</button>
         </div>
@@ -205,6 +262,33 @@ $user = $oat->query("SELECT username, bio, profile_img FROM users WHERE id = $us
             fetch('logout.php', {method: 'POST'})
                 .then(() => { window.location.href = 'login.php'; });
         };
+
+        // Ensure new password matches confirmation before submitting
+        document.getElementById('passwordForm').addEventListener('submit', function(e) {
+            var newPwd = document.getElementById('new_password').value;
+            var confirmPwd = document.getElementById('confirm_password').value;
+            if (newPwd !== confirmPwd) {
+                e.preventDefault();
+                alert('New password and confirmation do not match.');
+            }
+        });
+
+        // auto-hide success messages after 2 seconds
+        setTimeout(function() {
+            var msg = document.getElementById('successMsg');
+            if (msg) {
+                msg.style.transition = 'opacity 0.5s';
+                msg.style.opacity = '0';
+                setTimeout(function() { if(msg.parentNode) msg.parentNode.removeChild(msg); }, 500);
+            }
+            // also remove password_success alert if present
+            var pwd = document.getElementById('passwordSuccess');
+            if (pwd) {
+                pwd.style.transition = 'opacity 0.5s';
+                pwd.style.opacity = '0';
+                setTimeout(function() { if(pwd.parentNode) pwd.parentNode.removeChild(pwd); }, 500);
+            }
+        }, 2000);
     </script>
 </body>
 </html>

@@ -171,7 +171,7 @@ if (($_SESSION['role'] ?? '') === 'admin') {
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">Reason</label>
+                    <label class="form-label fw-semibold">Summary</label>
                     <textarea name="ot_reason" class="form-control" rows="3" required></textarea>
                 </div>
                 <div class="mb-3">
