@@ -72,6 +72,99 @@ while ($row = $records->fetch_assoc()) {
 }
 $completed_hours = floor($total_completed);
 $remaining_hours = max(0, $required_hours - $completed_hours);
+
+// build average hours‑per‑day from unique self‑verified session dates
+$unique_dates = [];
+$stmtAvg = $oat->prepare(
+    "SELECT DISTINCT date
+     FROM ojt_records
+     WHERE user_id = ?
+       AND time_out IS NOT NULL
+       AND time_out != '00:00:00'
+       AND time_out > time_in
+       AND selfie_verified = 1"
+);
+$stmtAvg->bind_param("i", $user_id);
+$stmtAvg->execute();
+$resDates = $stmtAvg->get_result();
+while ($d = $resDates->fetch_assoc()) {
+    $unique_dates[] = $d['date'];
+}
+$stmtAvg->close();
+
+$days_used = count($unique_dates);
+$avg_daily = $days_used ? $total_completed / $days_used : 0;
+
+// compute average weekday number (1=Mon..7=Sun) for use as start-of-weekday
+$avg_weekday_num = null;
+$avg_weekday_name = null;
+if ($days_used > 0) {
+    $weekday_nums = [];
+    foreach ($unique_dates as $d) {
+        $weekday_nums[] = (int)date('N', strtotime($d));
+    }
+    $avg_weekday_num = (int) round(array_sum($weekday_nums) / count($weekday_nums));
+    $weekdays = [1=>'Monday',2=>'Tuesday',3=>'Wednesday',4=>'Thursday',5=>'Friday',6=>'Saturday',7=>'Sunday'];
+    $avg_weekday_name = $weekdays[$avg_weekday_num] ?? null;
+}
+
+// keep legacy avg_date_display for subtitle but base it on weekday as well
+$avg_date_display = $avg_weekday_name ? "$avg_weekday_name" : null;
+
+// after calculating $est5_avg_date and $est6_avg_date below we will derive a combined estimate for display
+$est_combined_date_display = null;
+$est5_raw = null;
+$est6_raw = null;
+
+// helper – add $days working days to a DateTime instance, skipping
+// Sunday and optionally Saturday.
+function add_working_days(DateTime $dt, int $days, bool $includeSat = true) {
+    while ($days > 0) {
+        $dt->modify('+1 day');
+        $w = (int) $dt->format('N'); // 1=Mon … 6=Sat, 7=Sun
+        if ($w === 7) continue;            // never count Sunday
+        if (!$includeSat && $w === 6) continue; // skip Saturday if 5‑day
+        $days--;
+    }
+    return $dt;
+}
+
+if ($remaining_hours > 0 && $avg_daily > 0) {
+    $remaining_days_avg = ceil($remaining_hours / $avg_daily);
+    // starting point for estimate will be the next occurrence of the avg weekday
+    $start_obj = new DateTime('today');
+    if ($avg_weekday_num) {
+        // if the average weekday is a weekend, use next monday instead
+        if ($avg_weekday_num >= 6) {
+            $start_obj->modify('next monday');
+        } else {
+            while ((int)$start_obj->format('N') !== $avg_weekday_num) {
+                $start_obj->modify('+1 day');
+            }
+        }
+    }
+    // record weekday actually used for calculation
+    $calc_start_day = $start_obj->format('l');
+
+    // produce raw Y-m-d values for comparison later
+    $est5_raw = add_working_days(clone $start_obj, $remaining_days_avg, false)->format('Y-m-d');
+    $est6_raw = add_working_days(clone $start_obj, $remaining_days_avg, true)->format('Y-m-d');
+
+    $est5_avg_date = date('F j, Y', strtotime($est5_raw));
+    $est6_avg_date = date('F j, Y', strtotime($est6_raw));
+    // also create versions including weekday
+    $est5_avg_date = $est5_avg_date . ' (' . date('l', strtotime($est5_raw)) . ')';
+    $est6_avg_date = $est6_avg_date . ' (' . date('l', strtotime($est6_raw)) . ')';
+
+    // pick earlier of the two as combined estimate
+    if ($est5_raw && $est6_raw) {
+        $earlier = strtotime($est5_raw) <= strtotime($est6_raw) ? $est5_raw : $est6_raw;
+        $est_combined_date_display = date('F j, Y', strtotime($earlier)) . ' (' . date('l', strtotime($earlier)) . ')';
+    }
+} else {
+    $est5_avg_date = $est6_avg_date = null;
+}
+
 $progress = $required_hours > 0 ? min(100, round(($completed_hours / $required_hours) * 100)) : 0;
 
 // recent sessions (last 5) using prepared statement
@@ -197,22 +290,28 @@ $recent = $stmt->get_result();
             margin-top:18px;
             padding:18px;
         }
-        .recent table{ width:100%; border-collapse:collapse; }
-        .recent th{ text-align:left; font-size:13px; color:var(--muted); padding:8px 10px; font-weight:700; }
-        .recent td{ padding:10px; font-size:14px; color:#0f172a; border-top:1px solid rgba(15,23,42,0.04); }
+        .recent table{ width:100%; border-collapse:collapse; border:1px solid #000; }
+        .recent th{ text-align:left; font-size:13px; color:var(--muted); padding:8px 10px; font-weight:700; border:1px solid #000; }
+        .recent td{ padding:10px; font-size:14px; color:#0f172a; border:1px solid #000; }
         .avatar{
             width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-deep));display:inline-block;
             box-shadow:0 6px 18px rgba(15,23,42,0.06);
         }
         @media (max-width: 900px){
-            .stats{ grid-template-columns: repeat(1,fr); }
+            /* switch to single column and allow scrolling just in case */
+            .stats{ 
+                display:flex;
+                flex-direction:column;
+                gap:14px;
+                overflow-x:auto; /* enable touch scrolling when content is too wide */
+            }
             .header{ flex-direction:column; align-items:flex-start; gap:8px; padding:16px;}
             .actions{ padding:14px; width:100%; }
         }
         .profile-float {
             position: absolute;
             left: 50%;
-            top:7%;
+            top:6%;
             transform: translate(-50%, -40%); /* 50% overlap */
             z-index: 10;
             width: 150px;
@@ -230,7 +329,8 @@ $recent = $stmt->get_result();
             position: relative;
         }
         @media (max-width: 600px) {
-            .profile-float { width: 90px; height: 90px; }
+            .profile-float { width: 90px; height: 90px; 
+            top: 4%;}
             .req{
                 display: none !important;
             }
@@ -264,16 +364,7 @@ $recent = $stmt->get_result();
                             <a href="otreport.php" class="btn-accent">OT Report</a>
                         </div>
             <div class="stats" data-aos="fade-up" data-aos-delay="200">
-                <div class="stat req">
-                    <div class="label ">Required Hours</div>
-                    <div class="value"><?= number_format($required_hours,0) ?></div>
-                    <div class="progress-wrap">
-                        <div class="progress" aria-hidden="true">
-                            <div class="progress-bar" role="progressbar" style="width:<?= $required_hours>0 ? 100 : 0 ?>%"></div>
-                        </div>
-                        <div style="font-size:12px;color:var(--muted);margin-top:8px;">Total hours you must complete</div>
-                    </div>
-                </div>
+<!-- required hours card removed, incorporated into remaining display -->
 
                 <div class="stat">
                     <div class="label">Completed</div>
@@ -287,15 +378,41 @@ $recent = $stmt->get_result();
                 </div>
 
                 <div class="stat">
-                    <div class="label">Remaining</div>
-                    <div class="value"><?= number_format($remaining_hours,0) ?></div>
+                    <div class="label">Remaining / Required</div>
+                    <div class="value"><?= number_format($remaining_hours,0) ?>/<?= number_format($required_hours,0) ?></div>
                     <div class="progress-wrap">
                         <div class="progress" aria-hidden="true">
-                            <div class="progress-bar" role="progressbar" style="width:<?= max(0,100-$progress) ?>%; background: linear-gradient(90deg,#f3a683,#f7d794);"></div>
+                            <div class="progress-bar" role="progressbar" style="width:<?= $required_hours>0 ? max(0,min(100,($completed_hours/$required_hours)*100)) : 0 ?>%; background: linear-gradient(90deg,#f3a683,#f7d794);"></div>
                         </div>
                         <div style="font-size:12px;color:var(--muted);margin-top:8px;">Keep going — you're getting there</div>
                     </div>
                 </div>
+                <div class="stat">
+                    <div class="label">Average hours per day</div>
+                    <div class="value"><?= number_format(floor($avg_daily),0,0); ?></div>
+                </div>
+                <?php if ($est_combined_date_display): ?>
+                <div class="stat">
+                    <div class="label">Est. end (avg starting <?= htmlspecialchars($calc_start_day ?? ($avg_dayname ?: '‑')) ?>) &ndash; <?= number_format($avg_daily,2) ?>h/day</div>
+                    <div class="value"><?= htmlspecialchars($est_combined_date_display) ?></div>
+                    <div class="subtitle" style="font-size:12px;color:var(--muted);margin-top:4px;">
+                     
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($est5_avg_date): ?>
+                <div class="stat" id="est5-card" data-remaining="<?= htmlspecialchars($remaining_hours) ?>" data-average="<?= htmlspecialchars($avg_daily) ?>" data-days="<?= htmlspecialchars($remaining_days_avg) ?>" data-start="<?= htmlspecialchars($avg_date_display) ?>" data-date="<?= htmlspecialchars($est5_avg_date) ?>" data-type="5-day">
+                    <div class="label">Est. end (avg/5‑day from avg date)</div>
+                    <div class="value" style="cursor:pointer" title="Click for details"><?= htmlspecialchars($est5_avg_date) ?></div>
+                 
+                </div>
+                <div class="stat" id="est6-card" data-remaining="<?= htmlspecialchars($remaining_hours) ?>" data-average="<?= htmlspecialchars($avg_daily) ?>" data-days="<?= htmlspecialchars($remaining_days_avg) ?>" data-start="<?= htmlspecialchars($avg_date_display) ?>" data-date="<?= htmlspecialchars($est6_avg_date) ?>" data-type="6-day">
+                    <div class="label">Est. end (avg/6‑day from avg date)</div>
+                    <div class="value" style="cursor:pointer" title="Click for details"><?= htmlspecialchars($est6_avg_date) ?></div>
+                  
+                </div>
+                <?php endif; ?>
             </div>
 
             
@@ -310,16 +427,18 @@ $recent = $stmt->get_result();
                 <table class="table-borderless">
                     <thead>
                         <tr>
-                            <th style="width:20%;">Date</th>
+                            <th style="width:15%;">Date</th>
+                            <th style="width:10%;">Day</th>
                             <th style="width:15%;">Time In</th>
                             <th style="width:15%;">Time Out</th>
                             <th style="width:15%;">Regular Hours</th>
                             <th style="width:15%;">OT Hours</th>
-                            <th style="width:20%;">Total Hours</th>
+                            <th style="width:15%;">Total Hours</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php while($r = $recent->fetch_assoc()): ?>
+                        <?php $rowCount = 0; while($r = $recent->fetch_assoc()): ?>
+                            <?php if (++$rowCount > 5) break; ?>
                             <tr>
                                 <td>
                                     <a href="dtrdetail.php?id=<?= urlencode($r['id']) ?>" style="text-decoration:underline;color:var(--accent-deep);">
@@ -332,6 +451,10 @@ $recent = $stmt->get_result();
                                             </svg>
                                         </span>
                                     <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php $weekday = date('l', strtotime($r['date'])); ?>
+                                    <?= htmlspecialchars($weekday) ?>
                                 </td>
                             <td>
                                 <?php
@@ -392,13 +515,15 @@ $recent = $stmt->get_result();
                             <td>
                                 <?php
                                     if (!empty($r['time_in']) && $r['time_in'] !== '00:00:00' && !empty($r['time_out']) && $r['time_out'] !== '00:00:00') {
-                                        $policy_in   = $user_group_time_in     ?? ($r['time_in_policy']  ?? '08:00:00');
-                                        $policy_out  = $user_group_time_out    ?? ($r['time_out_policy'] ?? '17:00:00');
-                                        $lunch_s     = $user_group_lunch_start ?? ($r['lunch_start']      ?? '12:00:00');
-                                        $lunch_e     = $user_group_lunch_end   ?? ($r['lunch_end']        ?? '13:00:00');
-
+                                        $policy_in   = $user_group_time_in     ?? ($r['time_in_policy']  ?? null);
+                                        $policy_out  = $user_group_time_out    ?? ($r['time_out_policy'] ?? null);
+                                        $lunch_s     = $user_group_lunch_start ?? ($r['lunch_start']      ?? null);
+                                        $lunch_e     = $user_group_lunch_end   ?? ($r['lunch_end']        ?? null);
                                         $result = calculate_session_hours($r, $policy_in, $policy_out, $lunch_s, $lunch_e, $user_id, $oat);
-                                        echo $result['total'] . ' h';
+                                        $results = floor($result['total']);
+
+
+                                        echo $results . ' h';
                                     } else {
                                         echo '<span style="color:var(--muted)">--</span>';
                                     }
@@ -585,6 +710,39 @@ $recent = $stmt->get_result();
                     }
                 });
             }
+
+            // show calculation details when est date clicked in modal
+            function showEstDetails(card) {
+                var rem = card.dataset.remaining;
+                var avg = parseFloat(card.dataset.average);
+                var days = card.dataset.days;
+                // try to read stored date first; fall back to the visible value if something went wrong
+                var date = card.dataset.date || (card.querySelector('.value') ? card.querySelector('.value').textContent.trim() : '');
+                var type = card.dataset.type;
+                var start = card.dataset.start || '(start date not available)';
+
+                // debug: if date is just a number we probably picked up the wrong attribute
+                if (date && !isNaN(date)) {
+                    // use card text as final fallback
+                    var fallback = card.querySelector('.value') ? card.querySelector('.value').textContent.trim() : date;
+                    date = fallback;
+                }
+
+                var msg = '<p><strong>Based on start date:</strong> ' + start + '</p>'
+                        + '<p><strong>Remaining hours:</strong> ' + rem + '</p>'
+                        + '<p><strong>Average hours per day:</strong> ' + (isNaN(avg) ? avg : avg.toFixed(2)) + '</p>'
+                        + '<p><em>Calculation:</em> ' + rem + ' ÷ ' + (isNaN(avg) ? avg : avg.toFixed(2)) + ' = ' + days + ' day(s) (rounded up)</p>'
+                        + '<p><strong>Days needed (ceil):</strong> ' + days + '</p>'
+                        + '<p><strong>Estimated end (' + type + '):</strong> ' + date + '</p>';
+                document.getElementById('estModalBody').innerHTML = msg;
+                var modalEl = document.getElementById('estModal');
+                var modal = new bootstrap.Modal(modalEl);
+                modal.show();
+            }
+            ['est5-card','est6-card'].forEach(function(id){
+                var el = document.getElementById(id);
+                if (el) el.addEventListener('click', function(){ showEstDetails(el); });
+            });
         });
     </script>
 </body>

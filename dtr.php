@@ -137,7 +137,7 @@ function calculateTotalHours($row, $user_id, $oat) {
 
     // Treat explicit "00:00:00" as missing for both time_in/time_out
     if (empty($row['time_in']) || $row['time_in'] === '00:00:00' || empty($row['time_out']) || $row['time_out'] === '00:00:00') {
-        return ['total' => '', 'ot' => ''];
+        return ['total' => '', 'ot' => '', 'regular' => ''];
     }
 
     $time_in = strtotime($row['time_in']);
@@ -194,9 +194,17 @@ function calculateTotalHours($row, $user_id, $oat) {
     $ot_hours = (float)($row['ot_hours'] ?? 0);
 
     $total_hours = max(0, max(0, $reg_hours) + $ot_hours); // Always add full OT hours
+    $formatted_total = ($total_hours > 0 ? rtrim(rtrim(number_format($total_hours, 2), '0'), '.') : '0') . ' h';
+    $formatted_ot    = ($ot_hours > 0 ? rtrim(rtrim(number_format($ot_hours, 2), '0'), '.') : '0') . ' h';
+    $formatted_reg   = ($reg_hours > 0 ? rtrim(rtrim(number_format($reg_hours, 2), '0'), '.') : '0') . ' h';
+    // also include raw numeric values for external calculation/display
     return [
-        'total' => ($total_hours > 0 ? rtrim(rtrim(number_format($total_hours, 2), '0'), '.') : '0') . ' h',
-        'ot' => ($ot_hours > 0 ? rtrim(rtrim(number_format($ot_hours, 2), '0'), '.') : '0') . ' h'
+        'total'       => $formatted_total,
+        'ot'          => $formatted_ot,
+        'regular'     => $formatted_reg,
+        'total_num'   => $total_hours,
+        'ot_num'      => $ot_hours,
+        'regular_num' => $reg_hours
     ];
 }
 
@@ -323,7 +331,7 @@ function calculateTotalHours($row, $user_id, $oat) {
         .table thead th {
             background: linear-gradient(90deg, var(--accent-deep), var(--accent));
             color: #fff;
-            border: none;
+            border: 1px solid #000;
             font-weight: 700;
             font-size: 1rem;
         }
@@ -332,6 +340,7 @@ function calculateTotalHours($row, $user_id, $oat) {
         }
         .table td, .table th {
             vertical-align: middle;
+            border: 1px solid #000;
         }
         @media (max-width: 900px) {
             .dtr-glass { padding: 18px 6px; }
@@ -393,14 +402,16 @@ function calculateTotalHours($row, $user_id, $oat) {
 
          <div id="qr-result"></div>
          <div class="table-responsive mt-4">
-             <table class="table align-middle rounded-3 overflow-hidden shadow-sm">
+             <table class="table align-middle rounded-3 overflow-hidden shadow-sm" style="border:1px solid #000;">
                  <thead>
                      <tr>
                          <th>Date</th>
+                         <th>Day</th>
                          <th class="text-center">Time In</th>
                          <th class="text-center">Time Out</th>
-                         <th class="text-center">Total Hours</th>
+                         <th class="text-center">Regular Hours</th>
                          <th class="text-center">OT Hours</th>
+                         <th class="text-center">Total Hours</th>
                          <th class="text-center">Remarks</th>
                      </tr>
                  </thead>
@@ -420,6 +431,9 @@ function calculateTotalHours($row, $user_id, $oat) {
                                              </svg>
                                          </span>
                                      <?php endif; ?>
+                                 </td>
+                                 <td class="text-center">
+                                     <?php $wd = date('l', strtotime($row['date'])); echo htmlspecialchars($wd); ?>
                                  </td>
                                  <td class="text-center">
                                      <?php
@@ -447,19 +461,42 @@ function calculateTotalHours($row, $user_id, $oat) {
                                      <?= ($row['time_out'] && $row['time_out'] !== '00:00:00') ? date("g:iA", strtotime($row['time_out'])) : '--' ?>
                                  </td>
                                  <td class="text-center">
-                                     <?= $hours['total'] ?: '--' ?>
-                                 </td>
+                                    <?php
+                                        if (isset($hours['regular_num']) && is_numeric($hours['regular_num'])) {
+                                            echo floor($hours['regular_num']) . ' h';
+                                        } else {
+                                            echo '--';
+                                        }
+                                    ?>
+                                </td>
                                  <td class="text-center">
                                      <?= $hours['ot'] ?: '--' ?>
                                  </td>
                                  <td class="text-center">
-                                     <?= htmlspecialchars($row['remarks'] ?? '--') ?>
+                                    <?php
+                                        if (isset($hours['total_num']) && is_numeric($hours['total_num'])) {
+                                            echo floor($hours['total_num']) . ' h';
+                                        } else {
+                                            echo '--';
+                                        }
+                                    ?>
+                                 </td>
+                                 <td class="text-center">
+                                     <?php
+                                         // if both time_in and time_out are empty or "00:00:00", show No Show
+                                         if ((empty($row['time_in']) || $row['time_in'] === '00:00:00')
+                                             && (empty($row['time_out']) || $row['time_out'] === '00:00:00')) {
+                                             echo 'No Show';
+                                         } else {
+                                             echo htmlspecialchars($row['remarks'] ?? '--');
+                                         }
+                                     ?>
                                  </td>
                              </tr>
                          <?php endwhile; ?>
                      <?php else: ?>
                          <tr>
-                             <td colspan="6" class="py-4 text-center text-muted">No DTR records found.</td>
+                             <td colspan="7" class="py-4 text-center text-muted">No DTR records found.</td>
                          </tr>
                      <?php endif; ?>
                  </tbody>

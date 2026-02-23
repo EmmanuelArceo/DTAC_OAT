@@ -95,9 +95,10 @@ if ($user_id) {
             </ul>
 
             <div class="d-flex align-items-center">
-           
+           <button class="btn btn-outline-light logoutBtn" id="logoutBtn"> Logout</button>
+                <div class="dropdown ms-3">
+                </div>
             </div>
-        </div>
     </div>
 
     <!-- Loading Overlay -->
@@ -108,6 +109,21 @@ if ($user_id) {
             </div>
             <div class="mt-2" style="color:#0f172a;font-weight:600">Loading</div>
         </div>
+    </div>
+      <div class="modal fade" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4">
+          <div class="modal-header border-0">
+            <h5 class="modal-title text-danger" id="logoutModalLabel">Confirm Logout</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body text-center">
+            <p class="mb-3">Are you sure you want to logout?<br>This will also delete your DTR record for the current day.</p>
+            <button id="confirmLogout" class="btn btn-danger px-4 me-2">Logout</button>
+            <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+          </div>
+        </div>
+      </div>
     </div>
 </nav>
 
@@ -132,6 +148,14 @@ if ($user_id) {
             overlay.style.display = 'none';
         }
     };
+      document.getElementById('logoutBtn').onclick = function() {
+            var modal = new bootstrap.Modal(document.getElementById('logoutModal'));
+            modal.show();
+        };
+        document.getElementById('confirmLogout').onclick = function() {
+            fetch('logout.php', {method: 'POST'})
+                .then(() => { window.location.href = 'login.php'; });
+        };
 
     // Close mobile menu on link click
     document.querySelectorAll('#ojtNavbarMenu .nav-link').forEach(link => {

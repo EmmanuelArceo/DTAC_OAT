@@ -133,15 +133,33 @@ if (!empty($dtr['time_out']) && $dtr['time_out'] !== '00:00:00') {
                         </tr>
                         <tr>
                             <th><i class="bi bi-box-arrow-in-right"></i> Timed In</th>
-                            <td><?= date("h:i A", strtotime($dtr['time_in'])) ?></td>
+                            <td><?php
+                                if (!empty($dtr['time_in']) && $dtr['time_in'] !== '00:00:00') {
+                                    echo date("h:i A", strtotime($dtr['time_in']));
+                                } else {
+                                    echo '<span class="text-muted">--</span>';
+                                }
+                            ?></td>
                         </tr>
                         <tr>
                             <th><i class="bi bi-box-arrow-left"></i> Timed Out</th>
-                            <td><?= date("h:i A", strtotime($dtr['time_out'])) ?></td>
+                            <td><?php
+                                if (!empty($dtr['time_out']) && $dtr['time_out'] !== '00:00:00') {
+                                    echo date("h:i A", strtotime($dtr['time_out']));
+                                } else {
+                                    echo '<span class="text-muted">--</span>';
+                                }
+                            ?></td>
                         </tr>
                         <tr>
                             <th><i class="bi bi-hourglass-split"></i> Lunch Break</th>
-                            <td><?= date("h:i A", strtotime($lunch_start)) ?> - <?= date("h:i A", strtotime($lunch_end)) ?></td>
+                            <td><?php
+                                if ($lunch_start !== '00:00:00' && $lunch_end !== '00:00:00') {
+                                    echo date("h:i A", strtotime($lunch_start)) . ' - ' . date("h:i A", strtotime($lunch_end));
+                                } else {
+                                    echo '<span class="text-muted">--</span>';
+                                }
+                            ?></td>
                         </tr>
                         <tr>
                             <th><i class="bi bi-clock"></i> Time In Policy</th>
