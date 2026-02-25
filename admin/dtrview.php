@@ -8,13 +8,19 @@ if (!isset($_SESSION['user_id']) || !in_array(($_SESSION['role'] ?? ''), ['super
 }
 
 $ojt_id = isset($_GET['user_id']) ? intval($_GET['user_id']) : 0;
+// optional date range filter from query string
+$from_date = isset($_GET['from']) ? $_GET['from'] : '';
+$to_date   = isset($_GET['to']) ? $_GET['to'] : '';
+// validate dates (YYYY-MM-DD)
+if ($from_date && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $from_date)) { $from_date = ''; }
+if ($to_date && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to_date)) { $to_date = ''; }
 if (!$ojt_id) {
     echo "<div class='alert alert-danger'>No OJT selected.</div>";
     exit;
 }
 
 // Fetch OJT info using prepared statement
-$stmt = $oat->prepare("SELECT fname, lname, username, profile_img FROM users WHERE id = ?");
+$stmt = $oat->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->bind_param("i", $ojt_id);
 $stmt->execute();
 $ojt = $stmt->get_result()->fetch_assoc();
@@ -32,12 +38,60 @@ if (!empty($ojt['profile_img']) && file_exists(__DIR__ . '/../' . $ojt['profile_
 $avatar_src = htmlspecialchars($avatar . '?t=' . time());
 $avatar_alt = htmlspecialchars(trim(($ojt['fname'] ?? '') . ' ' . ($ojt['lname'] ?? '')));
 
-// Fetch DTR records using prepared statement (include policy fields and selfie_verified)
-$stmt = $oat->prepare("SELECT id, date, time_in, time_out, time_in_policy, time_out_policy, ot_hours, lunch_start, lunch_end, selfie_verified FROM ojt_records WHERE user_id = ? ORDER BY date DESC");
-$stmt->bind_param("i", $ojt_id);
+// Fetch DTR records using prepared statement (include policy fields, remarks and selfie_verified)
+$sql = "SELECT id, date, time_in, time_out, remarks, time_in_policy, time_out_policy, ot_hours, lunch_start, lunch_end, selfie_verified FROM ojt_records WHERE user_id = ?";
+$params = [$ojt_id];
+$types = "i";
+if ($from_date) {
+    $sql .= " AND date >= ?";
+    $types .= "s";
+    $params[] = $from_date;
+}
+if ($to_date) {
+    $sql .= " AND date <= ?";
+    $types .= "s";
+    $params[] = $to_date;
+}
+$sql .= " ORDER BY date DESC";
+$stmt = $oat->prepare($sql);
+// bind dynamic params
+$stmt->bind_param($types, ...$params);
 $stmt->execute();
 $dtr_query = $stmt->get_result();
 $stmt->close();
+
+// convert resultset to array so we can iterate twice (compute totals and display)
+$records = [];
+if ($dtr_query) {
+    $records = $dtr_query->fetch_all(MYSQLI_ASSOC);
+}
+
+// fetch required hours for this OJT
+$required_hours = 0;
+$stmt2 = $oat->prepare("SELECT required_hours FROM ojt_requirements WHERE user_id = ? LIMIT 1");
+$stmt2->bind_param("i", $ojt_id);
+$stmt2->execute();
+$reqrow = $stmt2->get_result()->fetch_assoc();
+$required_hours = $reqrow ? (float)$reqrow['required_hours'] : 0;
+$stmt2->close();
+
+// lookup adviser info if assigned
+$adviser = null;
+if (!empty($ojt['adviser_id'])) {
+    $stmt3 = $oat->prepare("SELECT fname, mname, lname, position FROM users WHERE id = ? LIMIT 1");
+    $stmt3->bind_param("i", $ojt['adviser_id']);
+    $stmt3->execute();
+    $adviser = $stmt3->get_result()->fetch_assoc();
+    $stmt3->close();
+}
+
+// compute total and remaining hours
+$total_hours = 0;
+foreach ($records as $row) {
+    $result = calculate_session_hours($row, $row['time_in_policy'], $row['time_out_policy'], $row['lunch_start'], $row['lunch_end'], $ojt_id, $oat);
+    $total_hours += $result['total'];
+}
+$remaining_hours = max(0, $required_hours - $total_hours);
 
 function calculate_session_hours($row, $user_policy_time_in, $user_policy_time_out, $user_lunch_start, $user_lunch_end, $user_id, $oat) {
     // treat explicit "00:00:00" as missing for both time_in/time_out
@@ -130,17 +184,24 @@ if (!function_exists('format_time')) {
         .table thead th {
             background: linear-gradient(90deg, #2aa0b3, #3CB3CC);
             color: #fff;
-            border: none;
+            border: 1px solid #000;
         }
         .table tbody tr:hover {
             background: rgba(60,179,204,0.04);
         }
+        .table {
+            width:100%;
+            border-collapse:collapse;
+        }
+        .table td, .table th {
+            vertical-align: middle;
+            border: 1px solid #000;
+        }
         @media print {
+            @page { size: portrait; margin: 10mm; }
             body {
                 background: #fff !important;
-            }
-            .btn, .mt-4, .mb-3.text-end {
-                display: none !important;
+                font-size: 0.75rem;
             }
             .glass {
                 box-shadow: none !important;
@@ -148,6 +209,32 @@ if (!function_exists('format_time')) {
                 background: #fff !important;
                 padding: 0 !important;
                 margin: 0 !important;
+                font-size: 0.75rem;
+            }
+            .table {
+                font-size: 0.75rem;
+            }
+            .btn, .mt-4, .mb-3.text-end {
+                display: none !important;
+            }
+            .signature-block {
+                position: fixed;
+                bottom: 40px;
+                right: 40px;
+                text-align: right;
+                width: 250px;
+            }
+            .signature-block .signature-line {
+                margin: 0 0 20px 0;
+                display: inline-block;
+                width: 100%;
+                border-bottom: 1px solid #000;
+                height: 1em;
+            }
+            .remarks-line {
+                margin-top: 8px;
+                border-bottom: 1px solid #000;
+                min-height: 3em;
             }
         }
     </style>
@@ -162,25 +249,59 @@ if (!function_exists('format_time')) {
             </div>
         </div>
         <h5 class="mb-3" style="color:#2aa0b3;">DTR Records</h5>
+        <!-- date range filter -->
+        <form method="get" class="row g-2 mb-3">
+            <input type="hidden" name="user_id" value="<?= htmlspecialchars($ojt_id) ?>">
+            <div class="col-auto">
+                <label for="from" class="form-label small">From</label>
+                <input type="date" id="from" name="from" class="form-control form-control-sm" value="<?= htmlspecialchars($from_date) ?>">
+            </div>
+            <div class="col-auto">
+                <label for="to" class="form-label small">To</label>
+                <input type="date" id="to" name="to" class="form-control form-control-sm" value="<?= htmlspecialchars($to_date) ?>">
+            </div>
+            <div class="col-auto align-self-end">
+                <button type="submit" class="btn btn-sm btn-secondary">Filter</button>
+            </div>
+        </form>
+        <?php if ($adviser): ?>
+            <div class="mb-2">
+                <strong>Adviser:</strong> <?= htmlspecialchars(trim($adviser['fname'].' '.$adviser['mname'].' '.$adviser['lname'])) ?>
+                <?php if (!empty($adviser['position'])): ?>
+                    (<?= htmlspecialchars($adviser['position']) ?>)
+                <?php endif; ?>
+            </div>
+            <div><strong>Position:</strong> <?= htmlspecialchars($ojt['position']) ?></div>
+        <?php endif; ?>
+        <?php if ($required_hours > 0): ?>
+            <div class="mb-3">
+                <strong>Required Hours:</strong> <?= number_format($required_hours) ?> h
+                &nbsp;|&nbsp;
+                <strong>Remaining Hours:</strong> <?= ceil(number_format($remaining_hours,2)) ?> h
+            </div>
+        <?php endif; ?>
         <div class="mb-3 text-end">
             <button class="btn btn-primary" onclick="window.print()">
                 <i class="bi bi-printer"></i> Print DTR
             </button>
         </div>
         <div class="table-responsive">
-            <table class="table align-middle">
+            <table class="table align-middle rounded-3 overflow-hidden shadow-sm" style="border:1px solid #000; width:100%; border-collapse:collapse;">
                 <thead>
                     <tr>
                         <th>Date</th>
+                        <th>Day</th>
                         <th class="text-center">Time In</th>
                         <th class="text-center">Time Out</th>
+                        <th class="text-center">Regular Hours</th>
                         <th class="text-center">OT Hours</th>
                         <th class="text-center">Total Hours</th>
+                        <th class="text-center">Remarks</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if ($dtr_query && $dtr_query->num_rows > 0): ?>
-                        <?php while ($row = $dtr_query->fetch_assoc()): ?>
+                    <?php if (!empty($records)): ?>
+                        <?php foreach ($records as $row): ?>
                             <tr>
                                 <td>
                                     <?php if (!empty($row['id'])): ?>
@@ -198,8 +319,19 @@ if (!function_exists('format_time')) {
                                         </span>
                                     <?php endif; ?>
                                 </td>
+                                <td class="text-center"><?= htmlspecialchars(date('l', strtotime($row['date']))) ?></td>
                                 <td class="text-center"><?= format_time($row['time_in']) ?></td>
                                 <td class="text-center"><?= format_time($row['time_out']) ?></td>
+                                <td class="text-center">
+                                    <?php
+                                    if ($row['time_in'] && $row['time_out'] && $row['time_out'] !== '00:00:00') {
+                                        $result = calculate_session_hours($row, $row['time_in_policy'], $row['time_out_policy'], $row['lunch_start'], $row['lunch_end'], $ojt_id, $oat);
+                                        echo floor($result['regular']) . ' h';
+                                    } else {
+                                        echo '--';
+                                    }
+                                    ?>
+                                </td>
                                 <td class="text-center">
                                     <?php
                                     if ($row['time_in'] && $row['time_out'] && $row['time_out'] !== '00:00:00') {
@@ -214,21 +346,39 @@ if (!function_exists('format_time')) {
                                     <?php
                                     if ($row['time_in'] && $row['time_out'] && $row['time_out'] !== '00:00:00') {
                                         $result = calculate_session_hours($row, $row['time_in_policy'], $row['time_out_policy'], $row['lunch_start'], $row['lunch_end'], $ojt_id, $oat);
-                                        echo $result['total'] . ' h';
+                                        echo floor($result['total']) . ' h';
                                     } else {
                                         echo '--';
                                     }
                                     ?>
                                 </td>
+                                <td class="text-center">
+                                    <?= htmlspecialchars($row['remarks'] ?? '--') ?>
+                                </td>
                             </tr>
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-4">No DTR records found.</td>
+                            <td colspan="8" class="text-center text-muted py-4">No DTR records found.</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
+        </div>
+        <?php if ($total_hours > 0): ?>
+            <div class="mb-3 text-end">
+                <strong>Total Completed Hours:</strong> <?= floor($total_hours) ?> h
+            </div>
+        <?php endif; ?>
+        <!-- adviser remarks for printed copy -->
+        <div class="mb-4">
+            <strong>Adviser Remarks:</strong>
+            <p class="remarks-line"></p>
+        </div>
+        <!-- signature area for printed copy -->
+        <div class="signature-block">
+            <p class="signature-line"></p>
+            <p class="small text-muted text-end">Adviser Signature</p>
         </div>
         <div class="mt-4">
             <a href="admin.php" class="btn btn-outline-secondary">&larr; Back to Dashboard</a>
