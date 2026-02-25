@@ -15,7 +15,7 @@ include 'nav.php';
 // Generate a new code every 2 seconds (global QR, not per user)
 function generate_qr_data($type) {
     $now = time();
-    $interval = 2;
+    $interval = 3;
     $code_time = floor($now / $interval) * $interval;
     $salt = $type === 'time_out' ? 'your_time_out_secret_salt' : 'your_global_secret_salt';
     $unique_code = hash('sha256', $code_time . $salt . $type);
@@ -151,7 +151,7 @@ $time_out_data = generate_qr_data('time_out');
 <body>
     <div class="qr-glass">
         <div class="qr-title">
-            <i class="bi bi-qr-code-scan me-2"></i>OJT QR Generators
+            <i class="bi bi-qr-code-scan me-2"></i>OJT TIME IN/OUT QR
         </div>
         <div class="text-center mb-4">
             <button id="toggle-qr-btn" class="toggle-btn">Show Time Out QR</button>
@@ -170,9 +170,9 @@ $time_out_data = generate_qr_data('time_out');
                 <div id="qr-expiry-time-out" class="qr-expiry">Expires in: <span id="qr-expiry-seconds-time_out"></span>s</div>
             </div>
         </div>
-        <div class="qr-note">
+     <!--   <div class="qr-note">
             QR codes refresh every 2 seconds and are valid only for today.
-        </div>
+        </div> -->
     </div>
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

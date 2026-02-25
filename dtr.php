@@ -190,6 +190,9 @@ function calculateTotalHours($row, $user_id, $oat) {
     $overlap = max(0, min($time_out, $lunch_end) - max($count_start, $lunch_start));
     $reg_hours -= $overlap / 3600;
 
+    // Ensure regular hours never go negative
+    $reg_hours = max(0, $reg_hours);
+
     // OT hours: from ojt_records
     $ot_hours = (float)($row['ot_hours'] ?? 0);
 
@@ -206,7 +209,7 @@ function calculateTotalHours($row, $user_id, $oat) {
         'ot_num'      => $ot_hours,
         'regular_num' => $reg_hours
     ];
-}
+} 
 
 ?>
 <!DOCTYPE html>
@@ -463,7 +466,8 @@ function calculateTotalHours($row, $user_id, $oat) {
                                  <td class="text-center">
                                     <?php
                                         if (isset($hours['regular_num']) && is_numeric($hours['regular_num'])) {
-                                            echo floor($hours['regular_num']) . ' h';
+                                            // clamp to zero just in case
+                                            echo floor(max(0, $hours['regular_num'])) . ' h';
                                         } else {
                                             echo '--';
                                         }
@@ -475,7 +479,7 @@ function calculateTotalHours($row, $user_id, $oat) {
                                  <td class="text-center">
                                     <?php
                                         if (isset($hours['total_num']) && is_numeric($hours['total_num'])) {
-                                            echo floor($hours['total_num']) . ' h';
+                                            echo floor(max(0, $hours['total_num'])) . ' h';
                                         } else {
                                             echo '--';
                                         }

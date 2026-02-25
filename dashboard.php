@@ -320,6 +320,7 @@ $recent = $stmt->get_result();
             justify-content: center;
             align-items: center;
         }
+     
         .glass-frosted {
             background: rgba(255,255,255,0.55);
             border: 1px solid rgba(60,179,204,0.18);
@@ -329,7 +330,7 @@ $recent = $stmt->get_result();
             position: relative;
         }
         @media (max-width: 600px) {
-            .profile-float { width: 90px; height: 90px; 
+            .profile-float img{ width: max(90px,100%); height: max(90px,100%); 
             top: 4%;}
             .req{
                 display: none !important;
@@ -349,7 +350,7 @@ $recent = $stmt->get_result();
         <!-- Floating Profile Image, centered and overlapping glass box -->
         <div class="profile-float">
             <img src="<?= htmlspecialchars($img) ?>" alt="Profile"
-                style="width:160px;height:160px;border-radius:50%;object-fit:cover;border:5px solid #3CB3CC;box-shadow:0 8px 32px rgba(60,179,204,0.18);background:rgba(255,255,255,0.7);" />
+                style="width:max(150px,100%);height:max(150px,100%);border-radius:50%;object-fit:cover;border:5px solid #3CB3CC;box-shadow:0 8px 32px rgba(60,179,204,0.18);background:rgba(255,255,255,0.7);" />
         </div>
         <div class="glass glass-frosted" style="margin-top:60px; padding-top:80px;">
             <div class="header justify-content-center" style="flex-direction:column; align-items:center; text-align:center;">
@@ -591,7 +592,7 @@ $recent = $stmt->get_result();
             ?>
             <div class="recent" style="margin-top:18px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                    <div style="font-weight:700;color:var(--accent-deep)">Assignments</div>
+                    <div style="font-weight:700;color:var(--accent-deep)">Assigned Task</div>
                     <div style="color:var(--muted);font-size:13px"><?= $assign_count ?></div>
                 </div>
                 <?php if ($assign_count > 0): ?>
