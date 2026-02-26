@@ -314,8 +314,8 @@ $modals = '';
                                              . '<div class="username">@' . $username . '</div>'
                                            . '</div>'
                                            . '<div class="actions">'
-                                             . '<a href="../profile.php?user=' . (int)$s['id'] . '" class="btn btn-sm btn-outline-secondary btn-compact me-1">Profile</a>'
-                                             . '<a href="dtruserview.php?user=' . (int)$s['id'] . '" class="btn btn-sm btn-primary btn-compact">DTR</a>'
+                                             . '<a href="manageojt.php?user_id=' . (int)$s['id'] . '" class="btn btn-sm btn-outline-secondary btn-compact me-1">Profile</a>'
+                                             . '<a href="dtrview.php?user_id=' . (int)$s['id'] . '" class="btn btn-sm btn-primary btn-compact">DTR</a>'
                                            . '</div>'
                                          . '</div>';
                                 }

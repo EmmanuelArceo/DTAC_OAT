@@ -110,6 +110,9 @@ while ($r = $resOjt->fetch_assoc()) {
     $ojts[] = ['id' => $r['id'], 'name' => fmt_name($r['fname'], $r['lname']), 'img' => $r['profile_img']];
 }
 
+
+
+
 $today = date('Y-m-d');
 $today_tasks = [];
 $upcoming_tasks = [];
@@ -117,7 +120,13 @@ $past_tasks = [];
 $upcoming_tracker = []; // To ensure only one card per OJT in the summary view
 
 $resAss = $oat->query("
-    SELECT a.*, ua.fname as to_f, ua.lname as to_l, ub.fname as by_f, ub.lname as by_l 
+    SELECT 
+        a.*, 
+        ua.fname as to_f, 
+        ua.lname as to_l,
+        ua.profile_img as to_profile_img,
+        ub.fname as by_f, 
+        ub.lname as by_l 
     FROM assignments a 
     LEFT JOIN users ua ON a.assigned_to = ua.id 
     LEFT JOIN users ub ON a.assigned_by = ub.id 
@@ -134,7 +143,10 @@ while ($row = $resAss->fetch_assoc()) {
     } elseif ($d > $today) {
         $upcoming_tasks[] = $row;
     } else {
-        $past_tasks[] = $row;
+        // history should show past tasks assigned by current user
+        if ((int)($row['assigned_by'] ?? 0) === $current_user_id) {
+            $past_tasks[] = $row;
+        }
     }
 }
 
@@ -250,8 +262,7 @@ foreach ($upcoming_tasks as $t) {
 
                     <div class="mb-4 section-group">
                         <div class="section-divider">
-                            <hr><div class="label">Upcoming (<?php echo count($upcoming_display_list); ?> unique)</div><hr>
-                        </div>
+                            <hr><div class="label">Upcoming (<?php echo count($upcoming_display_list); ?>)</div><hr>
                         <?php foreach ($upcoming_display_list as $t) renderTask($t); ?>
                         <?php if(!$upcoming_display_list) echo '<p class="text-muted small">No upcoming tasks.</p>'; ?>
                     </div>
@@ -295,6 +306,8 @@ function renderTask($t, $isHistory = false) {
             }
         }
     }
+
+
 ?>
     <div class="assignment-card task-item" 
          data-assigned-to="<?php echo (int)$t['assigned_to']; ?>" 
@@ -304,7 +317,7 @@ function renderTask($t, $isHistory = false) {
                 <div class="fw-bold"><?php echo htmlspecialchars($t['title']); ?></div>
                 <div class="small-muted"><?php echo htmlspecialchars(mb_strimwidth($t['description'], 0, 100, '...')); ?></div>
                 <div class="small-muted mt-1 d-flex align-items-center">
-                    <img src="../<?php echo htmlspecialchars($assignee_thumb); ?>" alt="" class="rounded-circle me-2" width="36" height="36" style="object-fit:cover">
+                    <img src="../<?php echo htmlspecialchars($assignee_thumb);?>" alt="" class="rounded-circle me-2" width="36" height="36" style="object-fit:cover">
                     Assignee:
                     <a href="#" class="assignee-link ms-2" data-assigned-to="<?php echo (int)$t['assigned_to']; ?>">
                         <?php echo htmlspecialchars($name); ?>
@@ -382,6 +395,19 @@ function renderTask($t, $isHistory = false) {
 document.addEventListener('DOMContentLoaded', function() {
     const editModal = new bootstrap.Modal('#editModal');
     const detailsModal = new bootstrap.Modal('#detailsModal');
+
+    // Toggle History
+    const toggleBtn = document.getElementById('toggleHistory');
+    const historyList = document.getElementById('historyList');
+    if (toggleBtn && historyList) {
+        toggleBtn.addEventListener('click', function () {
+            const isHidden = historyList.style.display === 'none' || historyList.style.display === '';
+            historyList.style.display = isHidden ? 'block' : 'none';
+            toggleBtn.textContent = isHidden
+                ? 'Hide History (<?php echo count($past_tasks); ?>)'
+                : 'Toggle History (<?php echo count($past_tasks); ?>)';
+        });
+    }
 
     // Details Modal Logic (show date + weekday)
     document.querySelectorAll('.btn-details').forEach(btn => {

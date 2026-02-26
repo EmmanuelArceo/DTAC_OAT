@@ -6,7 +6,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'supe
     header("Location: ../login.php");
     exit;
 }
-
+$ojt_id = isset($_GET['user_id']) ? intval($_GET['user_id']) : 0;
 if ($_SESSION['role'] === 'super_admin') {
     $ojts = $oat->query("SELECT id, username, fname, mname, lname, email, bio, profile_img, position, adviser_id FROM users WHERE role = 'ojt' ORDER BY lname, fname");
 } else {
@@ -169,6 +169,7 @@ $trainers = $oat->query("SELECT id, fname, lname FROM users WHERE role IN ('admi
                             <td class="text-center">
                                 <button 
                                     class="manage-btn"
+                                    id="manageBtn<?= (int)$ojt['id'] ?>"
                                     type="button"
                                     onclick="openManageModal(
                                         <?= (int)$ojt['id'] ?>, 
@@ -319,6 +320,16 @@ $trainers = $oat->query("SELECT id, fname, lname FROM users WHERE role IN ('admi
         var modal = new bootstrap.Modal(document.getElementById('manageModal'));
         modal.show();
     }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var targetOjtId = <?= (int)$ojt_id ?>;
+        if (!targetOjtId) return;
+
+        var targetButton = document.getElementById('manageBtn' + targetOjtId);
+        if (targetButton) {
+            targetButton.click();
+        }
+    });
     </script>
 <?php
 // Handle OJT profile update

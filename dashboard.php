@@ -571,29 +571,59 @@ $recent = $stmt->get_result();
                 if (in_array('created_at', $cols)) $order_by[] = "a.created_at DESC";
                 if (empty($order_by)) $order_by[] = "a.id DESC";
 
-                // exclude archived if status column exists
-                $status_cond = in_array('status', $cols) ? "a.status != 'archived' AND " : "";
-                $assign_sql = "SELECT a.id, a.title, a.description, $date_select, " . (in_array('status',$cols) ? "a.status, " : "") . "u.fname, u.mname, u.lname
+
+            $status_col = in_array('status', $cols) ? "a.status, " : "";
+
+// build SQL: scalar subquery returns current_count; user id bound twice (two ? placeholders)
+                    $assign_sql = "
+                    SELECT
+                        a.id,
+                        a.title,
+                        a.description,
+                        $date_select,
+                        {$status_col}
+                        u.fname,
+                        u.mname,
+                        u.lname,
+                        c.current_count
                     FROM assignments a
                     LEFT JOIN users u ON a.assigned_by = u.id
-                    WHERE {$status_cond}(a.assigned_to = ? OR a.assigned_to = 0 OR a.assigned_to IS NULL OR a.assigned_to = 'all')
-                    ORDER BY " . implode(', ', $order_by);
+                    CROSS JOIN (
+                        SELECT COUNT(*) AS current_count
+                        FROM assignments
+                        WHERE assigned_to = ?
+                        AND status != 'archived'
+                        AND due_date >= CURRENT_DATE
+                    ) c
+                    WHERE (a.assigned_to = ? OR a.assigned_to = 0 OR a.assigned_to IS NULL OR a.assigned_to = 'all')
+                    ORDER BY " . implode(', ', $order_by) . "
+                    ";
 
-                if ($stmtA = $oat->prepare($assign_sql)) {
-                    $stmtA->bind_param("i", $user_id);
-                    if ($stmtA->execute()) {
-                        $resA = $stmtA->get_result();
-                        $assignments = $resA->fetch_all(MYSQLI_ASSOC);
-                        $assign_count = $resA->num_rows;
-                    }
-                    $stmtA->close();
-                }
-            }
+// prepare and bind (bind the user_id twice)
+if ($stmtA = $oat->prepare($assign_sql)) {
+    // bind two identical ints for the two question marks
+    $stmtA->bind_param("ii", $user_id, $user_id);
+
+    if ($stmtA->execute()) {
+        $resA = $stmtA->get_result();
+        $assignments = $resA->fetch_all(MYSQLI_ASSOC);
+        $assign_count = $resA->num_rows; // number of rows returned
+        // scalar subquery value is present on each row (or null if no rows)
+        $current_badge_count = $assignments[0]['current_count'] ?? 0;
+    } else {
+        error_log("Execute error: " . $stmtA->error);
+    }
+
+
+    $stmtA->close();
+} else {
+    error_log("Prepare error: " . $oat->error);
+} }
             ?>
             <div class="recent" style="margin-top:18px;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
                     <div style="font-weight:700;color:var(--accent-deep)">Assigned Task</div>
-                    <div style="color:var(--muted);font-size:13px"><?= $assign_count ?></div>
+                    <div style="color:var(--muted);font-size:13px"><?= $current_badge_count ?></div>
                 </div>
                 <?php if ($assign_count > 0): ?>
                     <?php
@@ -665,6 +695,8 @@ $recent = $stmt->get_result();
                         </div>
 
                         <div>
+
+                        
                             <button id="togglePast" class="btn-accent" style="width:180px;">Show Past Tasks</button>
                             <div id="pastTasks" style="display:none;margin-top:12px;">
                                 <div style="font-weight:700;color:var(--accent-deep);margin-bottom:8px">Past Tasks</div>
