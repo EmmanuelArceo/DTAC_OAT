@@ -753,6 +753,7 @@ input[type=checkbox] {
                 <th style="width:40px;"><input type="checkbox" id="selectAll"></th>
                 <th>Student</th>
                 <th class="sortable" id="dateCol" style="width:110px;">Date<span class="sort-icon"></span></th>
+                 <th style="width:110px;">Day</th>
                 <th style="width:110px;">Type</th>
                 <th style="width:80px;">Hours</th>
                 <th style="width:65px;">Mult.</th>
@@ -785,6 +786,7 @@ input[type=checkbox] {
                   <div class="student-id">#<?=htmlspecialchars($r['user_id'])?></div>
                 </td>
                 <td style="font-family:'Inter',sans-serif;font-size:.82rem;"><?=htmlspecialchars($r['ot_date'])?></td>
+                <td><?=htmlspecialchars(date('l', strtotime($r['ot_date'])))?></td>
                 <td><span class="chip <?=$r['ot_type']==='early'?'chip-early':'chip-late'?>"><?=htmlspecialchars($tl)?></span></td>
                 <td><span class="hours-val"><?=htmlspecialchars($r['ot_hours'])?>h</span></td>
                 <td style="font-family:'Inter',sans-serif;font-size:.82rem;">×<?=htmlspecialchars($mult)?></td>
