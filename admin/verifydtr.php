@@ -366,7 +366,7 @@ if (!empty($rec['profile_img']) && file_exists(__DIR__ . '/../' . $rec['profile_
             <img id="selfieModalImg" src="" alt="Selfie full size" style="max-width:100%;height:auto;border-radius:10px;">
           </div>
           <div class="modal-footer">
-            <a id="selfieModalDownload" class="btn btn-outline-primary" href="#" download="selfie.jpg">Download</a>
+       
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
           </div>
         </div>
@@ -383,7 +383,7 @@ if (!empty($rec['profile_img']) && file_exists(__DIR__ . '/../' . $rec['profile_
       preview.addEventListener('click', () => {
         const src = preview.getAttribute('src');
         document.getElementById('selfieModalImg').src = src;
-        document.getElementById('selfieModalDownload').href = src;
+   
         new bootstrap.Modal(document.getElementById('selfieModal')).show();
       });
     }

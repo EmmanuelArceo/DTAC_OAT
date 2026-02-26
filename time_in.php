@@ -122,7 +122,7 @@ $time_in = date('H:i:s');
 if (!isset($user_policy_time_in)) $user_policy_time_in = $default_time_in;
 if (!isset($user_policy_time_out)) $user_policy_time_out = $default_time_out;
 // determine remarks against the user's policy time-in
-$remarks = ($time_in > $user_policy_time_in) ? 'late' : 'on time';
+$remarks = ($time_in > $user_policy_time_in) ? 'LATE' : 'ON TIME';
 
 if ($selRes->num_rows > 0) {
     $row = $selRes->fetch_assoc();
