@@ -88,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Failed to update profile. Please try again.';
         }
     }
+
 }
 ?>
 <!DOCTYPE html>
@@ -147,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="profile-header">
         <img src="../<?= htmlspecialchars($admin['profile_img'] ?: 'uploads/noimg.png') ?>?t=<?= time() ?>" alt="Profile Image">
         <div>
-            <h4 class="mb-0"><?= htmlspecialchars($admin['fname'] . ' ' . $admin['lname']) ?></h4>
+            <h4 class="mb-0"><?= htmlspecialchars($admin['fname'] . ' ' . $admin['lname'])  ?></h4>
             <small class="text-muted"><?= htmlspecialchars($admin['email']) ?></small>
         </div>
     </div>

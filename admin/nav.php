@@ -227,7 +227,7 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
       <a class="list-group-item list-group-item-action <?php echo active('dtruserview.php',$current); ?>" href="dtruserview.php">DTR View</a>
       <a class="list-group-item list-group-item-action <?php echo active('sitesettings.php',$current); ?>" href="sitesettings.php">Time Groups</a>
       <a class="list-group-item list-group-item-action <?php echo active('qr_generator.php',$current); ?>" href="qr_generator.php">QR Generator</a>
-      <a class="list-group-item list-group-item-action <?php echo active('asign.php',$current); ?>" href="asign.php">Assignments</a>
+      <a class="list-group-item list-group-item-action <?php echo active('assign.php',$current); ?>" href="assign.php">Assignments</a>
     </div>
 
     <div class="mt-3 d-flex gap-2">

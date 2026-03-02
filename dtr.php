@@ -490,9 +490,9 @@ function calculateTotalHours($row, $user_id, $oat) {
                                          // if both time_in and time_out are empty or "00:00:00", show No Show
                                          if ((empty($row['time_in']) || $row['time_in'] === '00:00:00')
                                              && (empty($row['time_out']) || $row['time_out'] === '00:00:00')) {
-                                             echo 'No Show';
+                                             echo 'NO SHOW';
                                          } else {
-                                             echo htmlspecialchars($row['remarks'] ?? '--');
+                                             echo htmlspecialchars(strtoupper($row['remarks'] ?? '--'));
                                          }
                                      ?>
                                  </td>

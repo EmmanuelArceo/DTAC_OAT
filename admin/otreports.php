@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mass_approve_ids'])) 
     if ($multiplier < 1) $multiplier = 1;
     $successCount = 0; $failCount = 0;
     foreach ($ids as $report_id) {
-        $stmt = $oat->prepare("SELECT student_id, ot_hours, ot_date, approved FROM ot_reports WHERE id = ?");
+        $stmt = $oat->prepare("SELECT * FROM ot_reports WHERE id = ?");
         $stmt->bind_param("i", $report_id); $stmt->execute();
         $rep = $stmt->get_result()->fetch_assoc();
         if (!$rep || $rep['approved'] == 1) { $failCount++; continue; }
@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mass_approve_ids'])) 
             if ($dt && $dt->format('Y') == '2012') $dt->setDate(2026, $dt->format('m'), $dt->format('d'));
             $date = $dt ? $dt->format('Y-m-d') : $date;
         }
+       
         $oat->begin_transaction();
         try {
             $mult = $multiplier; $rid = $report_id;
@@ -82,6 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['rep
                 $oat->commit();
             } catch (Exception $ex) { $oat->rollback(); $errors[] = 'Failed to approve report.'; }
         }
+        
     } elseif ($action === 'reject') {
         $chk = $oat->prepare("SELECT student_id, ot_hours, ot_date, approved, multiplier FROM ot_reports WHERE id = ?");
         $chk->bind_param("i", $report_id); $chk->execute();
@@ -108,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['rep
             } catch (Exception $ex) { $oat->rollback(); $errors[] = 'Failed to reject report.'; }
         }
     }
-}
+} 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['flash_success'] = $success;
@@ -125,23 +127,26 @@ $current_admin_id = $_SESSION['user_id'];
 $is_super_admin   = ($_SESSION['role'] ?? '') === 'super_admin';
 if ($is_super_admin) {
     $stmt = $oat->prepare("
-        SELECT otr.id, u.id as user_id, u.fname, u.lname, otr.ot_hours, otr.ot_type,
+        SELECT otr.*, u.id as user_id, u.fname, u.lname, otr.ot_hours, otr.ot_type,
                otr.reported_time_in, otr.reported_time_out, otr.ot_date, otr.ot_reason,
                otr.approved, otr.multiplier
         FROM ot_reports otr JOIN users u ON otr.student_id = u.id
         ORDER BY otr.submitted_at DESC, otr.id DESC");
 } else {
     $stmt = $oat->prepare("
-        SELECT otr.id, u.id as user_id, u.fname, u.lname, otr.ot_hours, otr.ot_type,
-               otr.reported_time_in, otr.reported_time_out, otr.ot_date, otr.ot_reason,
+        SELECT otr.*, u.id as user_id, u.fname, u.lname, otr.ot_hours, otr.ot_type,
+               otr.reported_time_in, otr.reported_time_out, otr.ot_date, otr.ot_reason, otr.before_img, otr.after_img,
                otr.approved, otr.multiplier
         FROM ot_reports otr JOIN users u ON otr.student_id = u.id
         WHERE u.adviser_id = ?
         ORDER BY otr.submitted_at DESC, otr.id DESC");
     $stmt->bind_param("i", $current_admin_id);
 }
+
 $stmt->execute();
 $reports = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+
 
 function isValidDbTime($s) {
     if (!$s) return false;
@@ -753,6 +758,7 @@ input[type=checkbox] {
                 <th style="width:40px;"><input type="checkbox" id="selectAll"></th>
                 <th>Student</th>
                 <th class="sortable" id="dateCol" style="width:110px;">Date<span class="sort-icon"></span></th>
+                 <th style="width:110px;">Day</th>
                 <th style="width:110px;">Type</th>
                 <th style="width:80px;">Hours</th>
                 <th style="width:65px;">Mult.</th>
@@ -785,6 +791,7 @@ input[type=checkbox] {
                   <div class="student-id">#<?=htmlspecialchars($r['user_id'])?></div>
                 </td>
                 <td style="font-family:'Inter',sans-serif;font-size:.82rem;"><?=htmlspecialchars($r['ot_date'])?></td>
+                <td><?=htmlspecialchars(date('l', strtotime($r['ot_date'])))?></td>
                 <td><span class="chip <?=$r['ot_type']==='early'?'chip-early':'chip-late'?>"><?=htmlspecialchars($tl)?></span></td>
                 <td><span class="hours-val"><?=htmlspecialchars($r['ot_hours'])?>h</span></td>
                 <td style="font-family:'Inter',sans-serif;font-size:.82rem;">×<?=htmlspecialchars($mult)?></td>
@@ -867,6 +874,7 @@ input[type=checkbox] {
                 <div class="ot-card-field-label">Actual In</div>
                 <div class="ot-card-field-val"><?=htmlspecialchars($v['actual_in']??'—')?></div>
               </div>
+             
             </div>
             <div class="ot-card-reason"><?=htmlspecialchars(mb_strimwidth($r['ot_reason'],0,80,'…'))?></div>
             <div class="ot-card-actions">
@@ -964,6 +972,7 @@ input[type=checkbox] {
               } else {
                 echo '—';
               }
+              
             ?></div>
           </div>
           <div class="modal-detail-row">
@@ -977,6 +986,20 @@ input[type=checkbox] {
               echo $aout ? htmlspecialchars($aout) : '--';
             ?></div>
           </div>
+           <div class="d-flex gap-3 mb-4">
+          <div class="text-center">
+            <small class="d-block text-muted mb-2 fw-bold text-uppercase" style="font-size: 0.65rem;">Before Image</small>
+            <div class="rounded border overflow-hidden" style="width: 150px; height: 150px; background: #f8fafc;">
+              <img src="../<?= htmlspecialchars($r['before_img']) ?: 'uploads/nootimg.png' ?> " class="w-100 h-100 object-fit-cover" alt="Before">
+            </div>
+          </div>
+          <div class="text-center">
+            <small class="d-block text-muted mb-2 fw-bold text-uppercase" style="font-size: 0.65rem;">After Image</small>
+            <div class="rounded border overflow-hidden" style="width: 150px; height: 150px; background: #f8fafc;">
+              <img src="../<?= htmlspecialchars($r['after_img']) ?: 'uploads/nootimg.png'  ?>" class="w-100 h-100 object-fit-cover" alt="After">
+            </div>
+          </div>
+        </div>
           <?php if($r['ot_type']!=='early'): ?>
           <div class="modal-detail-row">
             <div class="modal-detail-label">Call Out</div>

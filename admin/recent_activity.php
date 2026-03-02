@@ -51,7 +51,7 @@ if ($_SESSION['role'] === 'super_admin') {
             UNION ALL
             SELECT NULL as id, u.fname, u.mname, u.lname, u.profile_img, o.submitted_at as action_time, o.ot_date as date, 
                    o.submitted_at as action_datetime, 'ot_request' as action_type, o.id as ot_id, o.submitted_at as ot_submitted
-            FROM ot_reports ow
+            FROM ot_reports o   
             JOIN users u ON o.student_id = u.id
             WHERE u.role='ojt'
                 AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
@@ -60,6 +60,34 @@ if ($_SESSION['role'] === 'super_admin') {
         LIMIT 5
     ");
 }
+/*
+              SELECT * FROM (
+            SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_in as action_time, r.date, 
+                   CONCAT(r.date, ' ', r.time_in) as action_datetime, 'time_in' as action_type, NULL as ot_id, NULL as ot_submitted
+            FROM ojt_records r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.time_in IS NOT NULL
+              AND u.role='ojt'
+              AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
+            UNION ALL
+            SELECT r.id, u.fname, u.mname, u.lname, u.profile_img, r.time_out as action_time, r.date, 
+                   CONCAT(r.date, ' ', r.time_out) as action_datetime, 'time_out' as action_type, NULL as ot_id, NULL as ot_submitted
+            FROM ojt_records r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.time_out IS NOT NULL AND r.time_out != '' AND r.time_out != '00:00:00'
+              AND u.role='ojt'
+              AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
+            UNION ALL
+            SELECT NULL as id, u.fname, u.mname, u.lname, u.profile_img, ow.submitted_at as action_time, ow.ot_date as date, 
+                   ow.submitted_at as action_datetime, 'ot_request' as action_type, ow.id as ot_id, ow.submitted_at as ot_submitted
+            FROM ot_reports ow
+            JOIN users u ON ow.student_id = u.id
+            WHERE u.role='ojt'
+              AND (u.adviser_id = $admin_id OR u.adviser_id IS NULL OR u.adviser_id = '')
+        ) t
+        ORDER BY t.action_datetime DESC
+        LIMIT 5
+    " */
 if ($recent_activities && $recent_activities->num_rows > 0): ?>
     <ul class="activity-list">
         <?php while ($activity = $recent_activities->fetch_assoc()):
