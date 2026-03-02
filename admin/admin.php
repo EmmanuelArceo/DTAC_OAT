@@ -625,7 +625,7 @@ if ($_SESSION['role'] === 'super_admin') {
                     <i class="bi bi-person-badge-fill"></i>
                 </div>
                 <div class="stat-value"><?= $admin_count ?></div>
-                <div class="stat-label">Total Admins</div>   
+                <div class="stat-label">Total Advisers</div>   
                 <span class="stat-change positive">
                     <i class="bi bi-shield-check"></i> System Users
                 </span>
