@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OJT Management Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-color: #C6C8C7;
+            --sidebar-bg: #FFFFFF;
+            --primary-green: #89A481;
+            --dark-green: #1B4332;
+            --text-main: #333333;
+            --text-sub: #666666;
+            --status-active: #2D6A4F;
+            --status-inactive: #A4161A;
+            --white: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            display: flex;
+            height: 100vh;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        
+        .sidebar-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-right: 25px;
+            height: 100%;
+            flex-shrink: 0;
+        }
+
+        .sidebar-logo {
+            width: 55px;
+            height: 55px;
+            background: white;
+            border: 2px solid var(--primary-green);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .sidebar-logo img {
+            width: 85%;
+            height: auto;
+            object-fit: contain;
+        }
+
+        .sidebar {
+            width: 65px;
+            background: var(--sidebar-bg);
+            border-radius: 50px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            height: fit-content;
+        }
+
+        .nav-item {
+            color: #444;
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            cursor: pointer;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+
+        .nav-item.active {
+            background-color: var(--primary-green);
+            color: white;
+        }
+
+        .logout-btn {
+            margin-top: 10px;
+            color: #444;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        
+        .main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        h1 {
+            font-size: 26px;
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        .user-pill {
+            background-color: var(--primary-green);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-pill .avatar { width: 35px; height: 35px; background: rgba(255,255,255,0.3); border-radius: 50%; }
+
+        
+        .content-card {
+            background: var(--white);
+            border-radius: 30px;
+            padding: 30px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.03);
+            overflow: hidden; 
+        }
+
+        .table-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .table-title { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+
+        .controls { display: flex; gap: 12px; }
+        
+        .search-box {
+            background: #F2F2F2;
+            border-radius: 50px;
+            padding: 8px 18px;
+            display: flex;
+            align-items: center;
+            border: 1px solid #ddd;
+        }
+        .search-box input { border: none; background: transparent; outline: none; width: 220px; font-size: 14px; }
+        
+        .btn-filter { 
+            background: var(--primary-green); 
+            color: white; 
+            border: none; 
+            padding: 8px 20px; 
+            border-radius: 50px; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+       
+        .table-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            border-radius: 15px;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        
+        thead th {
+            position: sticky;
+            top: 0;
+            background: var(--primary-green);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-size: 13px;
+            font-weight: 600;
+            z-index: 10;
+        }
+
+        tbody td {
+            padding: 15px;
+            border-bottom: 1px solid #F0F0F0;
+            font-size: 14px;
+            color: var(--text-main);
+        }
+
+        tbody tr:hover { background-color: #FAFAFA; }
+
+        
+        .status {
+            padding: 5px 12px;
+            border-radius: 50px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: white;
+        }
+        .active-status { background-color: var(--status-active); }
+        .inactive-status { background-color: var(--status-inactive); }
+
+        .supervisor-name { color: var(--dark-green); font-weight: 600; font-size: 13px; }
+
+    </style>
+</head>
+<body>
+
+    <div class="sidebar-wrapper">
+        <div class="sidebar-logo">
+            <img src="dlsu Logo.png" alt="logo">
+        </div>
+        <div class="sidebar">
+            <div class="nav-item"><i class="fas fa-th-large"></i></div>
+            <div class="nav-item active"><i class="fas fa-users"></i></div>
+            <div class="nav-item"><i class="fas fa-user-check"></i></div>
+            <div class="nav-item"><i class="fas fa-history"></i></div>
+            <div class="nav-item"><i class="fas fa-calendar-alt"></i></div>
+            <div class="nav-item"><i class="fas fa-qrcode"></i></div>
+            <div class="logout-btn"><i class="fas fa-sign-out-alt"></i></div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <header class="header">
+            <h1>Active OJTs Today</h1>
+            <div class="user-pill">
+                <div class="avatar"></div>
+                <div class="user-info">
+                    <div style="font-weight:600; font-size:13px;">John Q. Public</div>
+                    <div style="font-size:10px; opacity:0.8;">DTC TVI Representative</div>
+                </div>
+                <i class="fas fa-chevron-down" style="font-size:10px; margin-left:10px;"></i>
+            </div>
+        </header>
+
+        <div class="content-card">
+            <div class="table-header-row">
+                <div class="table-title">
+                    <i class="fas fa-user-friends" style="color: var(--primary-green);"></i> OJT List
+                </div>
+                <div class="controls">
+                    <div class="search-box">
+                        <i class="fas fa-search" style="color:#aaa; font-size:13px; margin-right:10px;"></i>
+                        <input type="text" placeholder="Search by name, ID, or position...">
+                    </div>
+                    <button class="btn-filter">Filter by Name <i class="fas fa-chevron-down"></i></button>
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Trainee ID</th>
+                            <th>Full Name</th>
+                            <th>Username</th>
+                            <th>Email Address</th>
+                            <th>Position</th>
+                            <th>Supervisor</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="font-family: monospace; font-weight: 600;">1743562364</td>
+                            <td style="font-weight: 500;">John A. Doe</td>
+                            <td style="color: var(--text-sub);">@johndoeeunk</td>
+                            <td style="color: var(--text-sub);">johndoe@email.com</td>
+                            <td>Game Developer</td>
+                            <td class="supervisor-name">John Q. Public</td>
+                            <td><span class="status active-status">Active</span></td>
+                        </tr>
+                        <tr>
+                            <td style="font-family: monospace; font-weight: 600;">2485723648</td>
+                            <td style="font-weight: 500;">Jessica Smith</td>
+                            <td style="color: var(--text-sub);">@smithjss</td>
+                            <td style="color: var(--text-sub);">jessicasmith@email.com</td>
+                            <td>Data Analyst</td>
+                            <td class="supervisor-name">Rose P. Walker</td>
+                            <td><span class="status inactive-status">Inactive</span></td>
+                        </tr>
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const navItems = document.querySelectorAll('.nav-item');
+        navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                navItems.forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

@@ -42,7 +42,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($check->num_rows > 0) {
             $message = "<div class='alert alert-danger text-center mb-2'>Username, email, or mobile number already taken.</div>";
         }
-
+        
         if (empty($message)) {
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
             $sql = "INSERT INTO users (username, email, password, role, fname, mname, lname, age, mobile, school_org) VALUES ('$username', '$email', '$hashed_password', '$role', '$fname', '$mname', '$lname', $age, '$mobile', '$school_org')";
@@ -210,6 +210,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 eyeIcon.className = 'bi bi-eye';
             }
         });
+
+    
     </script>
 </body>
 </html>

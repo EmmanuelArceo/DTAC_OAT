@@ -36,6 +36,15 @@ if ($user_id) {
     background: linear-gradient(90deg, #2aa0b3);
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
+/* circle logo with hover effect */
+.ojt-logo {
+    border-radius: 50%;
+    transition: transform .25s ease;
+    cursor: pointer;
+}
+.ojt-logo:hover {
+    transform: scale(1.1);
+}
 .ojt-profile-img {
     width: 40px;
     height: 40px;
@@ -76,10 +85,8 @@ if ($user_id) {
 <nav class="navbar navbar-expand-lg ojt-navbar shadow-sm">
     <div class="container-fluid px-3">
         <a class="navbar-brand d-flex align-items-center" href="dashboard.php">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" class="me-2" xmlns="http://www.w3.org/2000/svg">
-                <rect width="24" height="24" rx="6" fill="url(#g)"/>
-                <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#3CB3CC"/><stop offset="1" stop-color="#2aa0b3"/></linearGradient></defs>
-            </svg>
+            <img src="uploads/logo.jpg" alt="logo" class="me-2 ojt-logo" style="height:35px;object-fit:contain">
+         
             <span class="text-white fw-bold">Attendance Tracker</span>
         </a>
 

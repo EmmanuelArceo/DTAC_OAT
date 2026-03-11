@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage OJTs - DLSU-D TESDA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-color: #C6C8C7;
+            --sidebar-bg: #FFFFFF;
+            --primary-green: #89A481;
+            --dark-green: #1B4332;
+            --table-header: #89A481;
+            --status-active: #1B4332;
+            --status-inactive: #A41B1B;
+            --modal-border: #1B4332;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+
+        body {
+            background-color: var(--bg-color);
+            height: 100vh;
+            display: flex;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        /* --- SIDEBAR & LOGO WRAPPER --- */
+        .sidebar-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-right: 25px;
+            height: 100%;
+            flex-shrink: 0;
+        }
+
+        .sidebar-logo {
+            width: 55px;
+            height: 55px;
+            background: white;
+            border: 2px solid var(--primary-green);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .sidebar-logo img {
+            width: 85%;
+            height: auto;
+            object-fit: contain;
+        }
+
+        .sidebar {
+            width: 65px;
+            background: var(--sidebar-bg);
+            border-radius: 50px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            height: fit-content;
+        }
+
+        .nav-item {
+            color: #333;
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            cursor: pointer;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: 0.2s ease;
+        }
+
+        .nav-item.active { background-color: var(--primary-green); color: white; }
+        .nav-item:hover:not(.active) { background-color: #f0f0f0; }
+        
+        .logout-btn {
+            margin-top: 10px;
+            color: #444;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .logout-btn:hover { color: var(--status-inactive); }
+
+        /* --- MAIN CONTENT AREA --- */
+        .main-container { flex: 1; overflow-y: auto; padding-right: 10px; }
+
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        
+        .header-left h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #000;
+        }
+
+        .user-pill {
+            background-color: var(--primary-green);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* DATA CARD */
+        .card {
+            background: white;
+            border-radius: 35px;
+            padding: 40px;
+            min-height: 500px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        .table-controls {
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            margin-bottom: 25px;
+            align-items: center;
+        }
+
+        .search-wrapper {
+            background: #F2F2F2;
+            border-radius: 25px;
+            padding: 5px 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 300px;
+            border: 1px solid #ddd;
+        }
+
+        .search-wrapper input { border: none; background: transparent; outline: none; flex: 1; font-size: 13px; }
+        .search-btn { background: #BABABA; border: none; padding: 4px 15px; border-radius: 15px; font-size: 11px; cursor: pointer; }
+
+        .filter-dropdown {
+            background: var(--primary-green);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            border: none;
+            cursor: pointer;
+        }
+
+        /* TABLE STYLES */
+        .ojt-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        
+        .ojt-table th {
+            background-color: var(--table-header);
+            color: white;
+            text-align: left;
+            padding: 15px;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .ojt-table th:first-child { border-top-left-radius: 15px; border-bottom-left-radius: 15px; }
+        .ojt-table th:last-child { border-top-right-radius: 15px; border-bottom-right-radius: 15px; }
+
+        .ojt-table td {
+            padding: 15px;
+            border-bottom: 1px solid #F0F0F0;
+            font-size: 13px;
+            color: #444;
+        }
+
+        .status-pill {
+            padding: 4px 12px;
+            border-radius: 20px;
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .status-pill.active { background-color: var(--status-active); }
+        .status-pill.inactive { background-color: var(--status-inactive); }
+
+        .action-icon { cursor: pointer; color: #333; font-size: 16px; transition: color 0.2s; }
+        .action-icon:hover { color: var(--primary-green); }
+
+        /* --- MODAL STYLES --- */
+        .modal-overlay {
+            display: none; /* Hidden by default */
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.3); /* Transparent dark background */
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(2px);
+        }
+
+        .modal-content {
+            background: white;
+            width: 650px;
+            border-radius: 30px;
+            border: 2px solid var(--modal-border);
+            overflow: hidden;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            animation: modalFadeIn 0.3s ease;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-header {
+            background-color: var(--primary-green);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+
+        .modal-header h2 { font-size: 20px; font-weight: 600; }
+        .close-modal { cursor: pointer; font-size: 22px; transition: 0.2s; }
+        .close-modal:hover { opacity: 0.7; }
+
+        .modal-body { padding: 35px; display: flex; flex-direction: column; gap: 15px; }
+
+        .input-row { display: flex; gap: 15px; }
+        .input-group { flex: 1; }
+
+        .modal-body input {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid var(--modal-border);
+            border-radius: 50px;
+            font-size: 13px;
+            outline: none;
+            color: #333;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .btn-m {
+            padding: 10px 30px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 2px solid var(--modal-border);
+            transition: 0.2s;
+        }
+
+        .btn-cancel { background: white; color: #333; }
+        .btn-update { background: var(--primary-green); color: white; }
+        .btn-delete { background: #C83E4D; color: white; border-color: #8B1E2B; }
+
+        .btn-m:hover { transform: translateY(-2px); opacity: 0.9; }
+
+    </style>
+</head>
+<body>
+
+    <div class="sidebar-wrapper">
+        <div class="sidebar-logo">
+            <img src="dlsu Logo.png" alt="logo">
+        </div>
+        
+        <aside class="sidebar">
+            <div class="nav-item"><i class="fas fa-th-large"></i></div>
+            <div class="nav-item active"><i class="fas fa-users"></i></div>
+            <div class="nav-item"><i class="fas fa-user-check"></i></div>
+            <div class="nav-item"><i class="fas fa-history"></i></div>
+            <div class="nav-item"><i class="fas fa-calendar-alt"></i></div>
+            <div class="nav-item"><i class="fas fa-qrcode"></i></div>
+            <div class="logout-btn"><i class="fas fa-sign-out-alt"></i></div>
+        </aside>
+    </div>
+
+    <main class="main-container">
+        <header class="header">
+            <div class="header-left">
+                <h1>Manage OJTs</h1>
+            </div>
+            <div class="user-pill">
+                <div style="width: 35px; height: 35px; background: rgba(255,255,255,0.3); border-radius: 50%;"></div>
+                <div style="font-size: 13px;"><b>John Q. Public</b><br><small>DTC TVI Representative</small></div>
+                <i class="fas fa-chevron-down" style="font-size: 12px; margin-left: 5px;"></i>
+            </div>
+        </header>
+
+        <div class="card">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                <i class="fas fa-users-cog" style="font-size: 22px;"></i>
+                <h2 style="font-size: 22px;">OJT List</h2>
+            </div>
+
+            <div class="table-controls">
+                <div class="search-wrapper">
+                    <i class="fas fa-search" style="color: #888; font-size: 12px;"></i>
+                    <input type="text" placeholder="Search trainee name or ID...">
+                    <button class="search-btn">Search</button>
+                </div>
+                <button class="filter-dropdown">
+                    Filter by status <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+
+            <table class="ojt-table">
+                <thead>
+                    <tr>
+                        <th>Trainee ID</th>
+                        <th>Name</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Position</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1743562364</td>
+                        <td>John A. Doe</td>
+                        <td>@johndoeunk</td>
+                        <td>johndoe@email.com</td>
+                        <td>Frontend Intern</td>
+                        <td><span class="status-pill active">Active</span></td>
+                        <td style="text-align: center;"><i class="far fa-edit action-icon" onclick="openEditModal()"></i></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <div id="editOjtModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit OJT Profile</h2>
+                <i class="fas fa-times close-modal" onclick="closeEditModal()"></i>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <input type="text" placeholder="First Name">
+                </div>
+                <div class="input-group">
+                    <input type="text" placeholder="Middle Name">
+                </div>
+                <div class="input-group">
+                    <input type="text" placeholder="Last Name">
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <input type="email" placeholder="Email">
+                    </div>
+                    <div class="input-group">
+                        <input type="text" placeholder="Username">
+                    </div>
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <input type="password" placeholder="Password">
+                    </div>
+                    <div class="input-group">
+                        <input type="text" placeholder="Assigned Supervisor">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-m btn-cancel" onclick="closeEditModal()">Cancel</button>
+                    <button class="btn-m btn-update">Update</button>
+                    <button class="btn-m btn-delete">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Toggle active state for navigation items
+        const navItems = document.querySelectorAll('.nav-item');
+        navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                navItems.forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+            });
+        });
+
+        // Modal Functions
+        function openEditModal() {
+            document.getElementById('editOjtModal').style.display = 'flex';
+        }
+
+        function closeEditModal() {
+            document.getElementById('editOjtModal').style.display = 'none';
+        }
+
+        // Close modal when clicking on the dimmed overlay background
+        window.onclick = function(event) {
+            const modal = document.getElementById('editOjtModal');
+            if (event.target == modal) {
+                closeEditModal();
+            }
+        }
+    </script>
+</body>
+</html>

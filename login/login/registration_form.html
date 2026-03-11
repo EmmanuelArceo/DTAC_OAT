@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Account</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+
+*{
+box-sizing:border-box;
+}
+
+body{
+min-height:100vh;
+margin:0;
+font-family:'Segoe UI', sans-serif;
+display:flex;
+justify-content:center;
+align-items:center;
+background:url("7571afb4-0fa4-4130-817e-31f28b78804b.png") no-repeat center center fixed;
+background-size:cover;
+position:relative;
+padding:20px;
+}
+
+/* blur overlay */
+body::before{
+content:"";
+position:absolute;
+inset:0;
+background:rgba(255,255,255,0.35);
+backdrop-filter: blur(12px);
+z-index:0;
+}
+
+/* NAVBAR */
+.main-navbar{
+    width: 100%;
+    background-color: #fff;
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: flex;            
+    justify-content: space-between; 
+    align-items: center;
+    padding: 10px 50px;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.nav-logo{
+    height: 80px;
+    margin-right: 10px;
+}
+
+/* MAIN CARD */
+.signup-wrapper{
+position:relative;
+z-index:1;
+display:flex;
+width:100%;
+max-width:1050px;
+border-radius:20px;
+overflow:hidden;
+background:#fff;
+box-shadow:0 18px 45px rgba(0,0,0,0.25);
+margin-top:90px;
+}
+
+/* CLOSE BUTTON */
+.close-btn{
+position:absolute;
+top:15px;
+right:20px;
+border:none;
+background:transparent;
+font-size:24px;
+font-weight:bold;
+color:#555;
+cursor:pointer;
+transition:0.2s;
+}
+
+.close-btn:hover{
+color:#000;
+transform:scale(1.2);
+}
+
+/* FORM SECTION */
+.form-section{
+width:55%;
+padding:35px 40px;
+display:flex;
+flex-direction:column;
+justify-content:center;
+}
+
+.form-section h4{
+text-align:center;
+font-weight:600;
+margin-bottom:18px;
+}
+
+/* INPUT STYLE */
+.form-control{
+border-radius:10px;
+border:1px solid #ddd;
+height:42px;
+font-size:14px;
+padding-left:12px;
+transition:0.2s;
+}
+
+.form-control:focus{
+border-color:#6b8f71;
+box-shadow:0 0 0 3px rgba(107,143,113,0.15);
+}
+
+/* SUBMIT BUTTON */
+.submit-area{
+margin-top:15px;
+}
+
+.btn-modern{
+width:100%;
+padding:12px;
+border:none;
+border-radius:10px;
+background:linear-gradient(135deg,#6b8f71,#7fa287);
+color:white;
+font-size:16px;
+font-weight:600;
+transition:0.25s;
+}
+.btn-modern {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #6b8f71; /* Keeps a green border when it turns white */
+    border-radius: 10px;
+    color: white; /* Initial text color */
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    
+    /* THE SLIDE SECRET: 
+       Create a background that is half green and half white.
+       Then make it 200% width so only one half shows at a time. */
+    background: linear-gradient(to right, #6b8f71 50%, #ffffff 50%);
+    background-size: 200% 100%;
+    background-position: right bottom;
+    
+    transition: all 0.4s ease-out;
+}
+
+/* THE HOVER STATE */
+.btn-modern:hover {
+    background-position: left bottom; /* Slides the white side into view */
+    color: #6b8f71; /* Changes text to green so it's visible on white */
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+/* Color for the typed text */
+.form-control {
+    color: #6b8f71 !important;
+    border: 1px solid #ddd;
+    padding-left: 45px; /* Room for icon */
+}
+
+/* Color for the placeholder "Username" / "Password" */
+.form-control::placeholder {
+    color: #6b8f71;
+    opacity: 0.7;
+}
+/* RIGHT PANEL */
+.right-section{
+width:45%;
+background:#7fa287;
+display:flex;
+flex-direction:column;
+}
+
+.right-quote{
+flex:1;
+display:flex;
+align-items:center;
+justify-content:center;
+text-align:center;
+padding:30px;
+font-size:34px;
+font-weight:700;
+line-height:1.2;
+color:#1f2d2a;
+}
+
+.right-image{
+flex:1;
+display:flex;
+justify-content:center;
+align-items:flex-start;
+padding:15px;
+}
+
+.right-image img{
+max-width:90%;
+max-height:90%;
+object-fit:contain;
+border-radius:20px;
+box-shadow:0 12px 30px rgba(0,0,0,0.25);
+transform: translateY(-70px);
+}
+
+/* LOGOS */
+.top-logos{
+display:flex;
+justify-content:center;
+gap:10px;
+margin-bottom:12px;
+}
+
+.top-logos img{
+width:40px;
+}
+
+/* -------- RESPONSIVE -------- */
+
+/* tablet */
+@media (max-width:992px){
+
+.signup-wrapper{
+flex-direction:column;
+}
+
+.form-section{
+width:100%;
+padding:30px;
+}
+
+.right-section{
+width:100%;
+height:250px;
+flex-direction:row;
+}
+
+.right-quote{
+font-size:24px;
+padding:15px;
+}
+
+.right-image{
+align-items:center;
+}
+
+}
+
+/* phone */
+@media (max-width:576px){
+
+.main-navbar{
+height:60px;
+padding:0 15px;
+}
+
+.nav-logo{
+height:40px;
+}
+
+.signup-wrapper{
+margin-top:80px;
+border-radius:15px;
+}
+
+.form-section{
+padding:25px 20px;
+}
+
+.form-section h4{
+font-size:20px;
+}
+
+.row.g-2{
+flex-direction:column;
+}
+
+.row.g-2 .col-6{
+width:100%;
+}
+
+.right-section{
+display:none;
+}
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="main-navbar">
+<img src="922abd68-1446-4ad9-b263-9ff3a11938cc.png" class="nav-logo">
+</div>
+
+<div class="signup-wrapper">
+
+<button class="close-btn" onclick="history.back()">✕</button>
+
+<div class="form-section">
+
+<div class="top-logos">
+<img src="2030c844-1210-4de9-a3a2-ba737f196087.png">
+<img src="2968dcb0-df3b-4dd2-92f9-7733119c7dd2.png">
+<img src="edacd6b7-034e-45f1-9e72-1bf2993c1bee.png">
+</div>
+
+<h4>Create an account</h4>
+
+<form>
+
+<div class="mb-2">
+<input type="text" class="form-control" placeholder="Last Name">
+</div>
+
+<div class="mb-2">
+<input type="text" class="form-control" placeholder="First Name">
+</div>
+
+<div class="row g-2 mb-2">
+<div class="col-6">
+<input type="text" class="form-control" placeholder="Middle Name">
+</div>
+<div class="col-6">
+<input type="number" class="form-control" placeholder="Age">
+</div>
+</div>
+
+<div class="row g-2 mb-2">
+<div class="col-6">
+<input type="text" class="form-control" placeholder="Mobile No.">
+</div>
+<div class="col-6">
+<input type="text" class="form-control" placeholder="School">
+</div>
+</div>
+
+<div class="mb-2">
+<input type="email" class="form-control" placeholder="Email">
+</div>
+
+<div class="mb-2">
+<input type="text" class="form-control" placeholder="Username">
+</div>
+
+<div class="row g-2 mb-2">
+<div class="col-6">
+<input type="password" class="form-control" placeholder="Password">
+</div>
+<div class="col-6">
+<input type="number" class="form-control" placeholder="Total Hours">
+</div>
+</div>
+
+<div class="submit-area">
+<button type="submit" class="btn-modern">Create Account</button>
+</div>
+
+</form>
+</div>
+
+<div class="right-section">
+
+<div class="right-quote">
+Always arrive<br>before the time.
+</div>
+
+<div class="right-image">
+<img src="laptop-computer-blank-screen-on-table-in-cafe-background-laptop-with-blank-screen-on-table-of.webp">
+</div>
+
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

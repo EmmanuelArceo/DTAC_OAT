@@ -983,7 +983,7 @@ input[type=checkbox] {
             <div class="modal-detail-label">Actual Time Out</div>
             <div class="modal-detail-val"><?php
               $aout = $v['actual_out'] ?? null;
-              echo $aout ? htmlspecialchars($aout) : '--';
+              echo $aout ? htmlspecialchars($aout) : '—';
             ?></div>
           </div>
            <div class="d-flex gap-3 mb-4">
@@ -1045,12 +1045,10 @@ input[type=checkbox] {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// ════════════════════════════════════════════════════════
-// SHARED STATE
-// ════════════════════════════════════════════════════════
+
 const S = { q:'', type:'', status:'pending', sort:null };
 
-// ── Desktop table ────────────────────────────────────────
+
 (function() {
   const table = document.getElementById('dtTable');
   if (!table) return;
@@ -1098,7 +1096,7 @@ const S = { q:'', type:'', status:'pending', sort:null };
   document.getElementById('pgNext').addEventListener('click', e=>{e.preventDefault();page++;draw();});
   document.getElementById('pg1').addEventListener('click',   e=>{e.preventDefault();page=1;draw();});
 
-  // desktop inputs
+
   document.getElementById('searchBox').addEventListener('input', e=>{S.q=e.target.value.trim().toLowerCase();syncM();render();});
   document.getElementById('filterType').addEventListener('change', e=>{S.type=e.target.value;syncM();render();});
   document.getElementById('filterStatus').addEventListener('change', e=>{S.status=e.target.value;syncM();updateFab();render();});
@@ -1107,12 +1105,11 @@ const S = { q:'', type:'', status:'pending', sort:null };
   window._dtRender = render;
   window._dtDraw   = draw;
 
-  // init
+
   document.getElementById('filterStatus').value='pending';
   render();
 })();
 
-// ── Mobile cards ─────────────────────────────────────────
 function applyCards() {
   const cards = document.querySelectorAll('#cardList .ot-card');
   let vis=0;
@@ -1128,7 +1125,7 @@ function applyCards() {
   if(empty) empty.style.display=vis===0?'':'none';
 }
 
-// ── Sync helpers ─────────────────────────────────────────
+
 function syncM(){
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v;};
   set('mSearchBox',S.q); set('mFilterType',S.type); set('mFilterStatus',S.status);
@@ -1144,7 +1141,7 @@ function updateFab(){
   badge.textContent=n||''; badge.classList.toggle('on',n>0);
 }
 
-// ── Drawer ───────────────────────────────────────────────
+
 (function(){
   const fab=document.getElementById('fabBtn');
   const overlay=document.getElementById('drawerOverlay');
@@ -1168,7 +1165,7 @@ function updateFab(){
   });
 })();
 
-// ── Mass approve (desktop) ───────────────────────────────
+
 (function(){
   const chks=document.querySelectorAll('.ot-sel');
   const panel=document.getElementById('massPanel');
@@ -1191,7 +1188,6 @@ function updateFab(){
   upd();
 })();
 
-// ── Mass approve (mobile) ────────────────────────────────
 (function(){
   const chks=document.querySelectorAll('.ot-sel-m');
   const panel=document.getElementById('mMassPanel');
@@ -1216,7 +1212,6 @@ function massSubmit(ids, mult){
   document.body.appendChild(f); f.submit();
 }
 
-// ── Auto-open modal ──────────────────────────────────────
 (function(){
   const id=new URL(location.href).searchParams.get('open_ot');
   if(!id)return;
@@ -1224,7 +1219,7 @@ function massSubmit(ids, mult){
   if(el)setTimeout(()=>new bootstrap.Modal(el).show(),300);
 })();
 
-// Init
+
 applyCards();
 updateFab();
 </script>

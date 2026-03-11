@@ -1,0 +1,117 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap');
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Poppins", serif;
+}
+body{
+    display: flex;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+    align-items: center;
+    background:url("7571afb4-0fa4-4130-817e-31f28b78804b.png") no-repeat center center fixed;
+    background-size: cover;
+    background-position: unset;
+    background-repeat: no-repeat;
+    color: #000000;
+}
+.navbar{
+    width: 100%;
+    background-color: #fff;
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: flex;            
+    justify-content: space-between; 
+    align-items: center;
+    padding: 10px 50px;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.nav-logo img{
+    height: 80px;
+    margin-right: 10px;
+}
+.main-wrapper{
+    margin: 0 15px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+.form-box{
+    width: 90%;
+    max-width: 450px; 
+    margin: 50px auto;
+    padding: 40px;
+    background: #6b8e78;
+    opacity: 1;
+    border-radius: 30px;
+    color: white;   
+}
+h3{
+    font-size: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+.input-containers .icon{
+    position: absolute;
+    left: 15px;        
+    top: 50%;           
+    transform: translateY(-50%); 
+    display: flex;
+    align-items: center;
+    z-index: 10;
+}
+.input-containers input {
+    width: 100%;
+    padding: 12px 12px 12px 40px; 
+    background: #ffffff;
+    border-radius: 25px;      
+    border: none;
+    outline: none;
+    color: #6b8e78;
+    margin-bottom: 20px;
+}
+button{
+    display: block;
+    align-items: center;
+    font-size: 14px;
+    margin-left: auto;
+    margin-right: auto;
+    width: fit-content;
+    padding: 10px 40px;
+    background: #52a06a;
+    color: white;
+    text-transform: uppercase, lowercase;
+    border-radius: 100px;
+    border: none !important;
+    cursor: pointer;
+    border: none;
+    background: linear-gradient(to left, #52a06a 50%, #eee 50%);
+    background-size: 210% 100%;
+    background-position: right bottom;
+    transition: all 0.4s ease-out;
+}
+button:hover{
+    background-color: #eee;
+    transform: scale(1.05);
+    transition: 0.3;
+    color: #52a06a;
+    background-position: left bottom;
+    transform: scale(1.05);
+}
+p{
+    font-size: 14.5px;
+    text-align: center;
+    margin-bottom: 10px;
+}
+p a{
+    color: rgb(0, 110, 74);
+    text-decoration: none;
+}
+p a:hover {
+    text-decoration: underline;
+    color: #eee;
+}

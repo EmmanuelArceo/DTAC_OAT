@@ -67,6 +67,15 @@ if (
 
 <style>
 :root{ --sb-w:220px; --sb-cw:72px; }
+/* logo circle互动 */
+.admin-logo {
+    border-radius: 50%;
+    transition: transform .25s ease;
+    cursor: pointer;
+}
+.admin-logo:hover {
+    transform: scale(1.1);
+}
 
 /* Desktop: fixed sidebar and push page content by padding on body */
 #sb-sidebar {
@@ -127,6 +136,7 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
 <nav id="top-navbar" class="navbar navbar-expand-lg navbar-light bg-white shadow-sm px-2 py-2" style="z-index:1050;">
   <div class="container-fluid">
     <a class="navbar-brand d-flex align-items-center" href="adminprofileedit.php">
+      <img src="../uploads/logo.jpg" alt="logo" class="me-2 admin-logo" style="height:36px;object-fit:contain">
       <img src="../<?php echo htmlspecialchars($avatar); ?>?t=<?php echo time(); ?>" alt="avatar" class="rounded me-2" style="width:36px;height:36px;object-fit:cover">
       <span class="fw-semibold"><?php echo htmlspecialchars(($_SESSION['fname'] ?? '') . ' ' . ($_SESSION['lname'] ?? '')); ?></span>
     </a>
@@ -139,6 +149,10 @@ html.sb-collapsed .sb-actions .label{ max-width:0; opacity:0; }
     <button id="sbToggleBtn" class="btn btn-sm btn-outline-secondary d-lg-none" aria-label="Toggle sidebar" aria-pressed="false"><i class="bi bi-list"></i></button>
   </div>
 
+  <!-- logo placed above user info -->
+  <div class="mb-3 text-center">
+    <img src="../uploads/logo.jpg" alt="logo" class="admin-logo" style="max-height:50px;max-width:100%;object-fit:contain">
+  </div>
   <a href="adminprofileedit.php" class="d-flex align-items-center text-decoration-none mb-3">
     <img src="../<?php echo htmlspecialchars($avatar); ?>?t=<?php echo time(); ?>" alt="avatar" class="rounded me-2" style="width:44px;height:44px;object-fit:cover">
     <div class="d-flex flex-column">
