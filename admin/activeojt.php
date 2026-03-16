@@ -38,7 +38,7 @@ if ($_SESSION['role'] === 'super_admin') {
         ORDER BY r.time_in ASC
     ");
 }
-//test
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
