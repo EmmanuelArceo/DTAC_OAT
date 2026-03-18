@@ -66,7 +66,10 @@ if (
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
 
 <style>
-:root{ --sb-w:220px; --sb-cw:72px; }
+:root{ 
+  
+
+--sb-w:220px; --sb-cw:72px; }
 /* logo circle互动 */
 .admin-logo {
     border-radius: 50%;
@@ -107,7 +110,7 @@ html.sb-collapsed body {
   #sb-sidebar { display: none !important; }
   #top-navbar { display: flex !important; }
 }
-
+/* Show sidebar on mobile when toggled */
 /* Hide top nav on desktop */
 #top-navbar { display: none; }
 
