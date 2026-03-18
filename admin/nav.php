@@ -110,7 +110,7 @@ html.sb-collapsed body {
   #sb-sidebar { display: none !important; }
   #top-navbar { display: flex !important; }
 }
-/* Show sidebar on mobile when toggled */
+
 /* Hide top nav on desktop */
 #top-navbar { display: none; }
 
