@@ -41,7 +41,7 @@ while ($row = $res->fetch_assoc()) {
     ];
 }
 
-// OT Reques
+// OT Requests
 $res = $oat->query("
     SELECT u.fname, u.lname, o.ot_date, o.submitted_at
     FROM ot_reports o
