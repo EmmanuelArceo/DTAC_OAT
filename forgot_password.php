@@ -59,7 +59,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
                 }
             }
-            // fallback: first 192.168.x.x
+            // fallback: first 192.168
             foreach (explode("\n", shell_exec('ipconfig 2>&1')) as $line) {
                 if (preg_match('/IPv4.*?:\s*([\d\.]+)/', $line, $matches)) {
                     $ip = $matches[1];
