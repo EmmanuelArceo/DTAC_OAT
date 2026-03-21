@@ -21,7 +21,7 @@ if (!$dtr) {
     exit;
 }
 
-// Use policy times directly from the DTR reco
+// Use policy times directly from the DTR record
 $policy_time_in_str = $dtr['time_in_policy'] ?? '08:00:00';
 $policy_time_out_str = $dtr['time_out_policy'] ?? '17:00:00';
 $lunch_start = $dtr['lunch_start'] ?? '12:00:00';
