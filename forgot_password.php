@@ -27,7 +27,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
                 }
             }
-            // If no 192.168.x.x, return another private IP if found
+            // If no 192.168.x.x, return another private IP if 
             if (!empty($ips)) return $ips[0];
             return getHostByName(getHostName());
         }
