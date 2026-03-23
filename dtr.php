@@ -304,7 +304,7 @@ function calculateTotalHours($row, $user_id, $oat) {
             color: #fff;
             transform: translateY(-2px) scale(1.03);
         }
-        /* disabled style for Time In button when already timed
+        /* disabled style for Time In button when already timed in */
         .btn-accent[disabled] {
             opacity: 0.6;
             cursor: not-allowed;
