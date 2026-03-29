@@ -131,7 +131,7 @@ function add_working_days(DateTime $dt, int $days, bool $includeSat = true) {
 
 if ($remaining_hours > 0 && $avg_daily > 0) {
     $remaining_days_avg = ceil($remaining_hours / $avg_daily);
-    // starting point for estimate will be the next occurrence of the avg weekday
+
     $start_obj = new DateTime('today');
     if ($avg_weekday_num) {
         // if the average weekday is a weekend, use next monday instead
