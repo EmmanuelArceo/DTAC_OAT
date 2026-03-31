@@ -143,7 +143,7 @@ if ($remaining_hours > 0 && $avg_daily > 0) {
             }
         }
     }
-   
+    // record weekday actually used for calculation
     $calc_start_day = $start_obj->format('l');
 
     // produce raw Y-m-d values for comparison later
