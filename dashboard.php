@@ -134,7 +134,7 @@ if ($remaining_hours > 0 && $avg_daily > 0) {
     // starting point for estimate will be the next occurrence of the avg weekday
     $start_obj = new DateTime('today');
     if ($avg_weekday_num) {
-        
+        // if the average weekday is a weekend, use next monday instead
         if ($avg_weekday_num >= 6) {
             $start_obj->modify('next monday');
         } else {
