@@ -117,7 +117,7 @@ $est5_raw = null;
 $est6_raw = null;
 
 // helper – add $days working days to a DateTime instance, skipping
-// Sunday and optionally Saturday.
+
 function add_working_days(DateTime $dt, int $days, bool $includeSat = true) {
     while ($days > 0) {
         $dt->modify('+1 day');
