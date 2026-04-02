@@ -116,8 +116,7 @@ $est_combined_date_display = null;
 $est5_raw = null;
 $est6_raw = null;
 
-// helper – add $days working days to a DateTime instance, skipping
-// Sunday and optionally Saturday.
+
 function add_working_days(DateTime $dt, int $days, bool $includeSat = true) {
     while ($days > 0) {
         $dt->modify('+1 day');
@@ -143,7 +142,7 @@ if ($remaining_hours > 0 && $avg_daily > 0) {
             }
         }
     }
-    
+    // record weekday actually used for calculation
     $calc_start_day = $start_obj->format('l');
 
     // produce raw Y-m-d values for comparison later
