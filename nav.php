@@ -78,7 +78,7 @@ if ($user_id) {
     align-items: center;
     justify-content: center;
     z-index: 9999;
-    /* Removed opacity and transition for instant show/hide */
+   
 }
 </style>
 
