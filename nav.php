@@ -12,7 +12,7 @@ if (isset($_SESSION['role']) && in_array($_SESSION['role'], ['super_admin', 'adm
     exit;
 }
 
-// Fetch user info for navbar
+
 $user_id = $_SESSION['user_id'] ?? null;
 $fname = $_SESSION['fname'] ?? '';
 $lname = $_SESSION['lname'] ?? '';
