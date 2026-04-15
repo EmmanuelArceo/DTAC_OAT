@@ -311,7 +311,7 @@ $recent = $stmt->get_result();
         .profile-float {
             position: absolute;
             left: 50%;
-            top:6%;
+            top:4%;
             transform: translate(-50%, -40%); /* 50% overlap */
             z-index: 10;
             width: 150px;
