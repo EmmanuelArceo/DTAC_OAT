@@ -167,7 +167,7 @@ if ($remaining_hours > 0 && $avg_daily > 0) {
 
 $progress = $required_hours > 0 ? min(100, round(($completed_hours / $required_hours) * 100)) : 0;
 
-
+// recent sessions (last 5) using prepared statement
 $stmt = $oat->prepare("SELECT id, date, time_in, time_out, ot_hours, time_in_policy, time_out_policy, lunch_start, lunch_end, selfie_verified FROM ojt_records WHERE user_id = ? ORDER BY date DESC, time_in DESC LIMIT 5");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
