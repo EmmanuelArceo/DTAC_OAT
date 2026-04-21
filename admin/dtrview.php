@@ -236,6 +236,9 @@ if (!function_exists('format_time')) {
                 border-bottom: 1px solid #000;
                 min-height: 3em;
             }
+            .date1 {
+                display: none !important;
+            }
         }
     </style>
 </head>
@@ -250,7 +253,7 @@ if (!function_exists('format_time')) {
         </div>
         <h5 class="mb-3" style="color:#2aa0b3;">DTR Records</h5>
         <!-- date range filter -->
-        <form method="get" class="row g-2 mb-3">
+        <form method="get" class="row g-2 mb-3 date1" >
             <input type="hidden" name="user_id" value="<?= htmlspecialchars($ojt_id) ?>">
             <div class="col-auto">
                 <label for="from" class="form-label small">From</label>
