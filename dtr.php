@@ -225,12 +225,12 @@ function calculateTotalHours($row, $user_id, $oat) {
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root {
-            --accent: #3CB3CC;
-            --accent-deep: #2aa0b3;
+             --accent: #6b8f71;
+            --accent-deep: #59705a;
             --muted: #6b7280;
         }
         body {
-            font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+             font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial !important;
             background: linear-gradient(135deg, #f7fbfb 0%, #fbfcfd 100%);
             color: #0f172a;
             min-height: 100vh;

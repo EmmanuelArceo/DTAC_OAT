@@ -37,11 +37,11 @@ if (isset($_GET['token'])) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --accent: #3CB3CC;
-            --accent-deep: #2aa0b3;
+          --accent: #6b8f71;
+            --accent-deep: #59705a;
         }
         body {
-            font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+             font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial !important;
             background: linear-gradient(135deg, #f7fbfb 0%, #fbfcfd 100%);
             min-height: 100vh;
             color: #0f172a;

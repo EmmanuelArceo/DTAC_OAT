@@ -32,9 +32,26 @@ if ($user_id) {
 }
 ?>
 <style>
+:root {
+    --accent: #6b8f71;
+    --accent-deep: #59705a;
+    --accent-light: #8ca987;
+    --accent-contrast: #ffffff;
+     font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial !important;
+}
 .ojt-navbar {
-    background: linear-gradient(90deg, #2aa0b3);
+    background: linear-gradient(90deg, var(--accent-deep), var(--accent));
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.ojt-navbar .nav-link,
+.ojt-navbar .navbar-brand,
+.ojt-navbar .btn,
+.ojt-navbar .navbar-toggler-icon {
+    color: var(--accent-contrast);
+}
+.ojt-navbar .nav-link:hover,
+.ojt-navbar .navbar-brand:hover {
+    color: var(--accent-light);
 }
 /* circle logo with hover effect */
 .ojt-logo {
@@ -50,18 +67,26 @@ if ($user_id) {
     height: 40px;
     border-radius: 50%;
     object-fit: cover;
-    border: 2px solid #fff;
+    border: 2px solid var(--accent-contrast);
 }
 .ojt-avatar-name {
     font-weight: 600;
-    color: #fff;
+    color: var(--accent-contrast);
 }
 .navbar-toggler {
     border: none;
     background: transparent;
 }
 .navbar-toggler-icon {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.5%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='m4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.8%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='m4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+.logoutBtn {
+    border-color: rgba(255,255,255,0.85);
+    color: var(--accent-contrast);
+}
+.logoutBtn:hover {
+    background: rgba(255,255,255,0.12);
+    color: var(--accent-contrast);
 }
 .dropdown-menu {
     border: none;

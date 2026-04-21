@@ -167,7 +167,7 @@ if ($remaining_hours > 0 && $avg_daily > 0) {
 
 $progress = $required_hours > 0 ? min(100, round(($completed_hours / $required_hours) * 100)) : 0;
 
-
+// recent sessions (last 5) using prepared statement
 $stmt = $oat->prepare("SELECT id, date, time_in, time_out, ot_hours, time_in_policy, time_out_policy, lunch_start, lunch_end, selfie_verified FROM ojt_records WHERE user_id = ? ORDER BY date DESC, time_in DESC LIMIT 5");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -185,15 +185,15 @@ $recent = $stmt->get_result();
     <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
     <style>
         :root{
-            --accent: #3CB3CC;
-            --accent-deep: #2aa0b3;
+             --accent: #6b8f71;
+            --accent-deep: #59705a;
             --glass-bg: rgba(255,255,255,0.55);
             --glass-border: rgba(60,179,204,0.12);
             --muted: #6b7280;
         }
         *{box-sizing:border-box}
         body{
-            font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+            font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial !important;
             margin:0;
             min-height:100vh;
             background: linear-gradient(135deg, #f6fbfb 0%, #eef9fa 50%, #f9fcfd 100%);

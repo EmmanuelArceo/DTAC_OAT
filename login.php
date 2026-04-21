@@ -44,77 +44,231 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
-        :root { --accent: #3CB3CC; --accent-deep: #2aa0b3; }
-        body{
-            font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial;
-            background: linear-gradient(135deg,#f6fbfb 0%, #eef9fa 50%, #f9fcfd 100%);
-            min-height:100vh; display:flex; align-items:center; justify-content:center;
-            color:#0f172a;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+
+        :root {
+            --accent: #6b8f71;
+            --accent-deep: #59705a;
+            --accent-soft: #8ca987;
+            --accent-contrast: #ffffff;
         }
-        .card-glass{
-            width:100%; max-width:420px;
-            background: rgba(255,255,255,0.65);
-            border: 1px solid rgba(60,179,204,0.10);
-            backdrop-filter: blur(8px) saturate(120%);
-            box-shadow: 0 12px 40px rgba(15,23,42,0.06);
-            border-radius:14px; padding:28px;
+
+        * {
+            box-sizing: border-box;
         }
-        .brand {
-            display:flex; align-items:center; gap:10px; margin-bottom:8px;
+
+        body {
+            margin: 0;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+            min-height: 100vh;
+            background: radial-gradient(circle at top left, rgba(107,143,113,0.18), transparent 32%),
+                        radial-gradient(circle at bottom right, rgba(89,112,90,0.16), transparent 28%),
+                        linear-gradient(180deg, #eef7f0 0%, #f9fcfb 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0f172a;
+            overflow-x: hidden;
         }
-        .brand .logo {
-            width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-deep));
-            box-shadow:0 8px 20px rgba(15,23,42,0.06);
+
+        .login-brand {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 22px;
         }
-        .brand h2{ margin:0; font-size:1.25rem; font-weight:800; color:var(--accent-deep); }
-        .form-label { color: #0f172a; font-weight:600; }
-        .form-control:focus { box-shadow: 0 0 0 0.2rem rgba(60,179,204,0.12); border-color: var(--accent-deep); }
-        .btn-accent {
-            background: linear-gradient(90deg,var(--accent) 0%, var(--accent-deep) 100%);
-            border: none; color: #fff; font-weight:700; padding:10px 14px; border-radius:10px;
+
+        .login-brand img {
+            width: 250px;
+            height: auto;
+            border-radius: 20px;
+            object-fit: contain;   
         }
-        .toggle-btn {
-            background: transparent; border:0; color:var(--accent-deep); font-size:1.05rem;
+
+        .card-glass {
+            width: min(100%, 420px);
+            background: rgba(255,255,255,0.92);
+            border: 1px solid rgba(107,143,113,0.18);
+            border-radius: 34px;
+            padding: 40px 34px 32px;
+            box-shadow: 0 24px 70px rgba(15,23,42,0.12);
+            backdrop-filter: blur(18px);
         }
-        .muted-link { color: var(--accent-deep); }
+
+        .login-heading {
+            margin: 0 0 10px;
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--accent-deep);
+            letter-spacing: -0.02em;
+            text-align: center;
+        }
+
+        .login-subtitle {
+            margin: 0 0 28px;
+            color: #45544c;
+            font-size: 0.95rem;
+            text-align: center;
+        }
+
+        .form-control-custom {
+            width: 100%;
+            border-radius: 999px;
+            border: 1px solid rgba(89,112,90,0.18);
+            padding: 14px 18px;
+            margin-bottom: 16px;
+            font-size: 0.95rem;
+            color: #0f172a;
+            background: #ffffff;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-control-custom:focus {
+            outline: none;
+            border-color: var(--accent-deep);
+            box-shadow: 0 0 0 0.2rem rgba(107,143,113,0.18);
+        }
+
+        .password-row {
+            position: relative;
+        }
+
+        .password-toggle-btn {
+            position: absolute;
+            right: 14px;
+            top: 38%;
+            right: 1%;
+            transform: translateY(-50%);
+            border: none;
+            background: rgba(107,143,113,0.12);
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-deep);
+            cursor: pointer;
+        }
+
+        .password-toggle-btn:hover {
+            background: rgba(107,143,113,0.18);
+        }
+
+        .btn-login-custom {
+            width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px 0;
+            border-radius: 999px;
+            border: none;
+            background: linear-gradient(90deg, var(--accent), var(--accent-deep));
+            color: var(--accent-contrast);
+            font-weight: 700;
+            font-size: 0.98rem;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 14px 30px rgba(89,112,90,0.16);
+        }
+
+        .btn-login-custom:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 18px 34px rgba(89,112,90,0.2);
+        }
+
+        .links {
+            margin-top: 18px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 0.88rem;
+            color: #55655a;
+            flex-wrap: wrap;
+        }
+
+        .links a {
+            color: var(--accent-deep);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .links a:hover {
+            text-decoration: underline;
+        }
+
+        .alert-custom {
+            margin-bottom: 18px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            font-size: 0.9rem;
+            background: rgba(255, 229, 229, 0.95);
+            border: 1px solid rgba(239, 87, 87, 0.2);
+            color: #8f1c1c;
+        }
+
+        @media (max-width: 520px) {
+            .navbar-brand-custom {
+                top: 12px;
+                left: 12px;
+                padding: 10px 12px;
+            }
+
+            .navbar-brand-custom img {
+                height: 42px;
+            }
+
+            .card-glass {
+                padding: 28px 22px;
+                border-radius: 28px;
+            }
+
+            .login-heading {
+                font-size: 1.5rem;
+            }
+
+            .form-control-custom {
+                padding: 13px 16px;
+            }
+
+            .password-toggle-btn {
+                width: 38px;
+                height: 38px;
+                right: 12px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="card-glass">
-        <div class="brand">
-            <div class="logo" aria-hidden="true"></div>
-            <h2>OJT Tracker</h2>
-        </div>
-
-        <p class="mb-3" style="font-weight:700;color:#0f172a">Sign in to your account</p>
-
+        <div class="card-glass">
+            <div class="login-brand">
+                <img src="922abd68-1446-4ad9-b263-9ff3a11938cc.png" alt="OJT Logo">
+            </div>
+            <h1 class="login-heading">Welcome back</h1>
+            <p class="login-subtitle">Sign in to your OJT account</p>
         <?php if ($message): ?>
             <?= $message ?>
         <?php endif; ?>
 
         <form method="post" action="">
             <div class="mb-3">
-                <label for="username" class="form-label">Username</label>
-                <input id="username" name="username" type="text" class="form-control" required autofocus />
+                <input id="username" name="username" type="text" class="form-control-custom" placeholder="Username" required autofocus />
             </div>
 
-            <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <div class="input-group">
-                    <input id="password" name="password" type="password" class="form-control" required />
-                    <button type="button" id="togglePassword" class="btn toggle-btn" aria-label="Toggle password">
-                        <i id="eyeIcon" class="bi bi-eye"></i>
-                    </button>
-                </div>
+            <div class="mb-3 password-row">
+                <input id="password" name="password" type="password" class="form-control-custom" placeholder="Password" required />
+                <button type="button" id="togglePassword" class="password-toggle-btn" aria-label="Show password">
+                    <i id="eyeIcon" class="bi bi-eye"></i>
+                </button>
             </div>
 
             <div class="d-grid mb-3">
-                <button type="submit" class="btn btn-accent">Login</button>
+                <button type="submit" class="btn-login-custom">Login</button>
             </div>
 
-            <div class="d-flex justify-content-between">
-                <small><a href="register.php" class="muted-link">Register</a></small>
-                <small><a href="forgot_password.php" class="muted-link">Forgot Password?</a></small>
+            <div class="links">
+                <a href="register.php">Create an account</a>
+                <a href="forgot_password.php">Forgot Password?</a>
             </div>
         </form>
     </div>
