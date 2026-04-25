@@ -216,7 +216,7 @@ if (!function_exists('format_time')) {
             }
             .btn, .mt-4, .mb-3.text-end {
                 display: none !important;
-            }
+            } 
             .signature-block {
                 position: fixed;
                 bottom: 40px;

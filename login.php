@@ -12,7 +12,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $result = $oat->query("SELECT * FROM users WHERE username='$username' LIMIT 1");
     if ($result && $result->num_rows === 1) {
         $user = $result->fetch_assoc();
-        if (password_verify($password, $user['password'])) {
+        $userStatus = strtolower(trim($user['status'] ?? ''));
+
+        if ($userStatus === 'restricted') {
+            $message = "<div class='alert alert-danger mb-3'>Your account is restricted and cannot log in.</div>";
+        } elseif (password_verify($password, $user['password'])) {
             // Start session and redirect (customize as needed)
             session_start();
             $_SESSION['user_id'] = $user['id'];
