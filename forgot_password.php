@@ -71,7 +71,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             return getHostByName(getHostName());
         }
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
-       
+        // Use the host as provided (includes port when present)
         $host = $_SERVER['HTTP_HOST'];
 
         // Compute the application's base path (works for root or subdirectories like /oat/)
