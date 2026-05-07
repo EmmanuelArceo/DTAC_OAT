@@ -20,7 +20,7 @@ $default_time_out = !empty($settings['time_out']) ? $settings['time_out'] : '17:
 $lunch_start = !empty($settings['lunch_start']) ? $settings['lunch_start'] : '12:00:00';  // Default to 12:00 PM
 $lunch_end = !empty($settings['lunch_end']) ? $settings['lunch_end'] : '13:00:00';  // Default to 1:00 PM
 
-// Handle POST requests with prepared statements for security
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['add_time_group'])) {
         $time_in = date('H:i:s', strtotime($_POST['group_time_in']));
